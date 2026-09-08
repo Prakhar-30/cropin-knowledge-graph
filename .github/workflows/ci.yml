@@ -38,3 +38,7 @@ jobs:
 
       - name: viewer builds
         run: npm run build:viewer
+
+      # A diagram that only renders when inlined is a diagram that is broken everywhere else.
+      - name: diagrams render through an img tag
+        run: npm run docs:check-diagrams

@@ -26,7 +26,8 @@
     "docs:diagrams": "node scripts/render-diagrams.mjs",
     "build:static": "node scripts/build-static.mjs",
     "vercel-build": "node scripts/build-static.mjs",
-    "check:secrets": "node scripts/check-secrets.mjs"
+    "check:secrets": "node scripts/check-secrets.mjs",
+    "docs:check-diagrams": "node scripts/check-diagrams.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",

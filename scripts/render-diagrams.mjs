@@ -84,7 +84,11 @@ ${blocks.map((_, i) => `<div id="d${i}" style="padding:8px"></div>`).join('\n')}
     theme: 'neutral',
     fontFamily: 'ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif',
     sequence: { useMaxWidth: false, wrap: false, actorMargin: 60 },
-    flowchart: { useMaxWidth: false, htmlLabels: true, curve: 'basis' },
+    // htmlLabels puts labels in a foreignObject, and an SVG loaded through an <img> tag renders in a
+    // restricted mode where foreignObject content is dropped - the boxes draw and the text vanishes.
+    // GitHub's SVG sanitiser strips it too. Plain <text> and <tspan> work everywhere.
+    flowchart: { useMaxWidth: false, htmlLabels: false, curve: 'basis' },
+    htmlLabels: false,
   });
   for (let i = 0; i < sources.length; i++) {
     try {
