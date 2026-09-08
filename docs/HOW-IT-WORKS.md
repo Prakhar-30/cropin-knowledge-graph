@@ -1,82 +1,92 @@
-# How it works, end to end
+# How it works
 
-*Read this and you can explain the project to anyone: what it is, how the data gets there, why each
-decision was made that way, and what a person actually does with it.*
+A plain-English walkthrough of the whole project, one step at a time. No prior knowledge needed.
 
-Every number in this document is real - taken from the built document, not invented for the example. If
-you want to check one, the command is under it.
+Read this and you should be able to explain the project to anyone — what it is, how the data gets in, why
+each choice was made, and what someone actually does with it.
 
-The diagrams are generated from the mermaid source kept in a collapsed block beneath each one, so they
-render in any viewer rather than only on github.com. `npm run docs:diagrams` regenerates them.
+Every number here is real. It comes from the built graph, not from an example I made up. Where you can
+check a number yourself, the command is right under it.
+
+> Want the technical version instead? [`ARCHITECTURE.md`](ARCHITECTURE.md) has the pipeline in depth and
+> [`DECISIONS.md`](DECISIONS.md) has the reasoning behind the harder calls. This document is the friendly
+> one.
+
+The pictures are generated from the mermaid code tucked under each one. `npm run docs:diagrams` rebuilds
+them.
 
 ---
 
 ## Contents
 
-1. [The scene: a decision made blind](#1-the-scene-a-decision-made-blind)
-2. [What we start with: a database shaped like Cropin](#2-what-we-start-with-a-database-shaped-like-cropin)
-3. [Connecting to it, and why read-only is enforced](#3-connecting-to-it-and-why-read-only-is-enforced)
-4. [Pulling the information: what we read and why](#4-pulling-the-information-what-we-read-and-why)
-5. [Mapping: where a row becomes a node](#5-mapping-where-a-row-becomes-a-node)
-6. [The ontology: what the graph believes exists](#6-the-ontology-what-the-graph-believes-exists)
-7. [Building the graph](#7-building-the-graph)
-8. [Deriving the numbers: the evidence rule](#8-deriving-the-numbers-the-evidence-rule)
-9. [Proving it: the invariants](#9-proving-it-the-invariants)
-10. [Publishing: four ways to reach the same document](#10-publishing-four-ways-to-reach-the-same-document)
-11. [What a user sees, and what they do with it](#11-what-a-user-sees-and-what-they-do-with-it)
-    - [Using Route: how are these two things connected?](#using-route-how-are-these-two-things-connected)
-12. [The questions people will ask](#12-the-questions-people-will-ask)
-13. [Cheat sheet](#13-cheat-sheet)
+- [The short version](#the-short-version)
+- [Step 1 — We start with a database full of Cropin data](#step-1--we-start-with-a-database-full-of-cropin-data)
+- [Step 2 — We connect to it, and we can only read](#step-2--we-connect-to-it-and-we-can-only-read)
+- [Step 3 — We read two kinds of thing](#step-3--we-read-two-kinds-of-thing)
+- [Step 4 — We turn rows into things and connections](#step-4--we-turn-rows-into-things-and-connections)
+- [Step 5 — We tell the graph what each thing *is*](#step-5--we-tell-the-graph-what-each-thing-is)
+- [Step 6 — We assemble the graph](#step-6--we-assemble-the-graph)
+- [Step 7 — We work out all the numbers](#step-7--we-work-out-all-the-numbers)
+- [Step 8 — We check that everything adds up](#step-8--we-check-that-everything-adds-up)
+- [Step 9 — We publish it](#step-9--we-publish-it)
+- [Step 10 — Someone uses it](#step-10--someone-uses-it)
+- [How to use Route](#how-to-use-route)
+- [Questions people ask](#questions-people-ask)
+- [Cheat sheet](#cheat-sheet)
 
 ---
 
-## 1. The scene: a decision made blind
+## The short version
 
-An agronomist is setting up next season in Cropin Cloud. They have to choose, for a potato contract in
-Gujarat:
+**The problem.** Someone is setting up next season in Cropin Cloud. For a potato contract in Gujarat they
+have to pick a variety, a set of growth stages, a yield to expect, a grade to promise the buyer, and which
+diseases to watch for.
 
-- which variety to put on the processing contract
-- which growth stage set to run it on
-- what yield to expect, and what grade to promise the processor
-- which diseases to configure warnings for
+The platform will accept whatever they type. It already holds the history that would tell them which
+answers worked last time — plot counts, harvest results, stage timings, weather, disease warnings. But
+that history sits across projects, reports and dashboards, and all of those are built around *running
+this season*, not around *making this choice*.
 
-The platform will accept any answer they give. It holds everything needed to tell them which answers
-worked last time - plot counts, harvest records, stage history, weather, fired warnings - but that
-history is spread across projects, reports and dashboards that are each organised around *this season's
-operations*, not around *this configuration decision*.
+So the choice gets made from memory. Two seasons later the yield came in 14% low and the grade failed, and
+nobody can say whether the cause was the variety, the region, the stage set, or the weather.
 
-So the decision gets made from memory and instinct. Then, two seasons later, someone notices the yield
-was 14% under expectation and the grade failed, and nobody can say whether that was the variety, the
-region, the stage set or the weather.
+**What we built.** One screen that answers the setup question using the organisation's own history.
 
-**This project is one screen that answers the configuration question with the organisation's own
-history.** It reports over the platform. It changes nothing.
+- Pick any thing — a crop, a variety, a plan, a disease.
+- See everything connected to it, and **how many real plots are behind each connection**.
+- See what actually happened on those plots, right next to what was set up.
 
-> The scope cut matters as much as the scope. People, org, plots, projects, tasks, model internals,
-> compliance and market are all deliberately out. Everything that remains answers one question: *what
-> should I configure, and what does our own history say about that choice.*
+**What it does not do.** It never changes anything in Cropin. It only reads. It shows the evidence; a
+person makes the decision.
+
+**One idea to remember.** Almost every number on the screen is *added up from the connections*, not typed
+in by anyone. That is why two numbers on the graph can never disagree.
+[Step 7](#step-7--we-work-out-all-the-numbers) explains it.
 
 ---
 
-## 2. What we start with: a database shaped like Cropin
+## Step 1 — We start with a database full of Cropin data
 
-A tenant database with the platform's own masters. The names come from the Cropin walkthrough, traced
-term by term in [`ontology/nomenclature.md`](../ontology/nomenclature.md).
+A Cropin tenant has tables for everything you set up: crops, varieties, growth stages, plans, activities,
+alerts. These are **master tables** — the reference lists that the rest of the system points at.
 
-<img src="diagrams/masters.svg" alt="The platform master tables this graph reads" width="100%">
+We named our tables after the ones in the Cropin walkthrough and traced every term back to it in
+[`ontology/nomenclature.md`](../ontology/nomenclature.md), so none of the vocabulary here is invented.
+
+<img src="diagrams/masters.svg" alt="The Cropin tables this project reads" width="100%">
 
 <details>
 <summary>Mermaid source</summary>
 
 ```mermaid
 flowchart LR
-  subgraph H["Crop hierarchy"]
+  subgraph H["What you grow"]
     A1[crop_master]
     A2[variety_master]
     A3[sub_variety_master]
     A4[variety_parameters]
   end
-  subgraph C["Crop configuration"]
+  subgraph C["How you set it up"]
     B1[crop_growth_stages]
     B2[seed_grades]
     B3[harvest_grades]
@@ -88,7 +98,7 @@ flowchart LR
     C3[soil_type_master]
     C4[irrigation_type_master]
   end
-  subgraph P["Plans and field work"]
+  subgraph P["The work in the field"]
     D1[plan_type_master]
     D2[crop_plan]
     D3[plan_activity]
@@ -96,11 +106,11 @@ flowchart LR
     D5[resource_master]
     D6[form_master]
   end
-  subgraph R["Risk"]
+  subgraph R["What goes wrong"]
     E1[alert_master]
   end
-  subgraph O["Operational history"]
-    F1[plot / task / harvest tables]
+  subgraph O["What actually happened"]
+    F1[plot, task and harvest tables]
   end
 
   A1 --> A2 --> A3
@@ -112,91 +122,98 @@ flowchart LR
   D3 --> D4
   D3 --> D6
   A1 --> E1
-  F1 -. "aggregated into views" .-> O
 ```
+
 </details>
 
-Two relationships the platform sets up in Configuration and then uses everywhere - and which this graph
-inherits:
+Cropin sets up two chains and then uses them everywhere:
 
-| Chain | Meaning |
+| Chain | What it means |
 |---|---|
 | Client → Contractor → Farmers | who works with whom |
-| **Farmer → Asset → Crop → Variety → Sub Variety** | what is grown where, and the crop hierarchy |
+| **Farmer → Asset → Crop → Variety → Sub Variety** | what is grown, and how crops are organised |
 
-The second chain is the one that matters here. The first is out of scope.
+**The second chain is the one this project cares about.** The first is about people, and people are out of
+scope on purpose.
 
-**In the demo, the fixture masters are 41 tables** - 19 masters, 11 junctions, 11 operational
-aggregates - created by [`supabase/schema.sql`](../supabase/schema.sql) and filled by
-`npm run sql:masters`. In a real deployment those tables already exist and only the *mapping file*
-changes.
+For the demo we created those tables ourselves and filled them with made-up but realistic data — 41
+tables in all. In a real deployment they already exist, and the only thing that changes is one
+configuration file, which you meet in [Step 4](#step-4--we-turn-rows-into-things-and-connections).
 
 ---
 
-## 3. Connecting to it, and why read-only is enforced
+## Step 2 — We connect to it, and we can only read
 
-<img src="diagrams/connect.svg" alt="How the pipeline connects, and why it is read-only" width="100%">
+<img src="diagrams/connect.svg" alt="How the connection works, and why it can only read" width="100%">
 
 <details>
 <summary>Mermaid source</summary>
 
 ```mermaid
 sequenceDiagram
-    participant CLI as cropin-graph
-    participant Env as .env
-    participant Map as mappings/default.yaml
-    participant PG as Postgres via PostgREST
+    participant CLI as our tool
+    participant Env as .env file
+    participant Map as the mapping file
+    participant PG as the database
 
-    CLI->>Map: which tables, which columns, which variables hold the credentials
-    Map-->>CLI: url_env and key_env - names, never values
-    CLI->>Env: read VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY
-    Note over Env: A real environment value always wins over the file, so a<br/>CI secret is never overwritten by someone's laptop.
-    CLI->>Map: reject anything resembling DDL or DML before a connection opens
-    CLI->>PG: select, with tenant_id = this tenant
+    CLI->>Map: which tables do I read, and where are the login details?
+    Map-->>CLI: the names of two environment variables, never the values
+    CLI->>Env: read the address and the key
+    Note over Env: A value already set on the machine wins, so a<br/>server secret is never overwritten by a file<br/>on someone's laptop.
+    CLI->>Map: check nothing here looks like a write, before connecting
+    CLI->>PG: SELECT, for one tenant only
     PG-->>CLI: rows
-    Note over PG: Row level security grants select and nothing else.<br/>An insert with this key is refused by the database,<br/>not by our code.
+    Note over PG: The database itself only allows reading.<br/>A write with this key is refused by the<br/>database, not by our code.
 ```
+
 </details>
 
-**Three independent layers say read-only, and they were each verified rather than assumed:**
+Three separate things stop this project from ever changing your data. Any one would be enough; having all
+three means a mistake in one is caught by the others.
 
-1. **The mapping file cannot express a write.** It names a table and columns. `assertReadOnly` rejects
-   any name matching `insert|update|delete|drop|alter|create|truncate|grant|revoke|copy` *before* a
-   connection is opened.
-2. **The code only ever issues selects.** `SupabaseTableReader` has one method: `read`.
-3. **The database refuses.** `supabase/schema.sql` enables row level security on all 45 tables it
-   creates and grants `select` only.
+1. **The configuration file cannot even describe a write.** It only lists table and column names. Before
+   we open a connection we scan it for anything that looks like a change — `insert`, `update`, `delete`,
+   `drop` and so on — and refuse to continue if we find one.
+2. **The code has no way to write.** The piece that talks to the database has exactly one function:
+   `read`.
+3. **The database says no.** We switch on a Postgres feature called row level security and grant only
+   `SELECT`. So even if the first two failed, the database refuses.
+
+We tested that third one rather than assuming it:
 
 ```
-$ # insert with the publishable key
-  401 {"code":"42501","message":"new row violates row-level security policy for table \"crop_master\""}
+$ # try to insert a row using the key this project uses
+  401  new row violates row-level security policy for table "crop_master"
 ```
 
-The one command that writes anything is `push`, and it writes only to the graph store's own `kg_*`
-tables - never back to a platform master.
+**About the two kinds of key.** Supabase gives you a *publishable* key and a *secret* key.
 
-> **Why publishable keys are safe to publish.** The publishable (anon) key is designed to be public; it
-> carries no privileges of its own. Everything it can do is decided by row-level security policies in the
-> database. The **service role key bypasses RLS entirely** and belongs only in `.env`, which is
-> gitignored. `npm run check:secrets` fails the build if a key-shaped string appears in a tracked file.
+- The **publishable key** is meant to be public. On its own it can do nothing — what it reaches is decided
+  entirely by the database's security rules, and ours allow reading only. This is the key the project
+  uses.
+- The **secret key** ignores all those rules. It belongs only in `.env`, which is never committed. Just
+  one command needs it, and that command writes to our own tables — never to a Cropin table.
+
+`npm run check:secrets` fails the build if a key-shaped string ever appears in a committed file.
 
 ---
 
-## 4. Pulling the information: what we read and why
+## Step 3 — We read two kinds of thing
 
-We read two kinds of thing.
+### Kind one: the lists, as they are
 
-### Masters, as they are
+`crop_master`, `variety_master`, `plan_activity` and the rest. Plain reads, one query per kind of thing.
 
-`crop_master`, `variety_master`, `plan_activity`… straight reads. One query per record type.
+### Kind two: the counts, worked out by the database
 
-### Aggregates, as views
+This is the most important technical decision in the project, and it is simple once you see why.
 
-This is the important design decision. **Every derived number is computed by a SQL view, never summed in
-our process.**
+We need numbers like *how many plots grow this variety*. Those come from the operational tables — plots,
+tasks, harvests — which can hold millions of rows. So we do **not** pull those rows out and count them
+ourselves. We ask the database to count them, using a **view**: a saved query that behaves like a table.
 
 ```sql
--- supabase/schema.sql
+-- how many plots each crop has: add up its varieties
 create or replace view v_crop_plots as
 select v.tenant_id, v.crop_key, sum(coalesce(a.plots, 0))::int as plots
 from variety_master v
@@ -205,163 +222,179 @@ left join agg_variety_plot_count a
 group by v.tenant_id, v.crop_key;
 ```
 
-**Why.** The graph is small - low thousands of nodes. The operational tables are not: plots, tasks and
-harvest records run to millions of rows. A relational engine aggregates those far better than anything we
-would write, and pulling millions of rows into Node to sum them would be absurd. So SQL aggregates, the
-graph is materialised as a document, and traversal happens in memory over a few thousand nodes.
+**Why this way?** The graph is small — a few thousand things. The operational tables are huge. Databases
+are extremely good at counting millions of rows; dragging those rows across the network to count them in
+our own program would be slow and pointless. So the database counts, and we read the answer.
 
-The 31 views split into two jobs:
+We have 31 of these views doing two jobs:
 
-| Kind | Example | Job |
+| Job | Example | What it does |
 |---|---|---|
-| **weight views** | `v_variety_disease_plots` | turn a junction row into a number: `variety plots × recorded incidence` |
-| **display views** | `v_growth_stage_display` | join a foreign key to the label a human reads |
+| **Work out a number** | `v_variety_disease_plots` | a variety's plots × how often the disease was recorded |
+| **Fetch a name** | `v_growth_stage_display` | a stage row stores `crop_key`; a person needs to read "Potato" |
 
-A display view exists because a record's attributes are display-ready strings, and `"Crop": "Potato"`
-needs the crop's *name*, not its key. The alternative would be a lookup per row in the mapping layer -
-the N+1 the architecture rules out.
+The second kind exists because the screen shows names, not database keys. Looking up each name one row at
+a time would mean thousands of tiny queries, so the database joins them once instead.
 
-### What happens when a table is missing
+### What if a table is missing?
 
-A table reader returns `null` - not an empty array - when a table does not exist. That distinction is
-load-bearing:
+Not every customer has every table. Maybe their crops and varieties are set up but there is no harvest
+history yet. We handle that on purpose:
 
-<img src="diagrams/missing-data.svg" alt="What happens when a source table is missing" width="100%">
+<img src="diagrams/missing-data.svg" alt="What happens when a table is missing" width="100%">
 
 <details>
 <summary>Mermaid source</summary>
 
 ```mermaid
 flowchart TD
-  A["read a table"] --> B{"does it exist?"}
-  B -->|"rows"| C["build the records"]
-  B -->|"empty"| D["no rows: a real, valid answer"]
-  B -->|"null"| E["missing: record the gap"]
-  E --> F["meta.coverage.metrics_not_computed"]
-  F --> G["the graph still builds, with that number absent"]
-  G --> H["the viewer shows 'not computed for this tenant'"]
+  A["try to read a table"] --> B{"what came back?"}
+  B -->|"rows"| C["use them"]
+  B -->|"no rows"| D["fine - the answer really is zero"]
+  B -->|"the table is not there"| E["write down that we could not get this"]
+  E --> F["the graph still gets built"]
+  F --> G["that number is simply missing, not guessed"]
+  G --> H["the screen says 'not available for this customer'"]
 ```
+
 </details>
 
-A tenant with masters but no operational history still gets a usable configuration view - it just has no
-weights. That is tested: `tests/fixtures/acme` deliberately omits a metric table.
+The key point: **missing and empty are different**, and we never turn a missing number into a zero. A
+customer with no history still gets a useful setup view — it just has no plot counts behind the
+connections, and the screen says so.
 
 ---
 
-## 5. Mapping: where a row becomes a node
+## Step 4 — We turn rows into things and connections
 
-**No table or column name exists anywhere in `src/`.** It all lives in one file per tenant. That is what
-makes this portable to a real Cropin schema without touching code.
+A graph is made of two ingredients:
 
-### The anatomy of a mapping entry
+- **things** — Kufri Pukhraj, Gujarat, Late Blight
+- **connections** — Kufri Pukhraj *is grown in* Gujarat
+
+So how do we know that the `name` column becomes the title and the `plots` column becomes a count? That is
+written down in one file per customer: the **mapping file**.
+
+**No table name or column name appears anywhere in our program code.** It all lives in that file. That is
+what lets this work against a real Cropin database without changing any code.
+
+### What a mapping entry looks like
 
 ```yaml
 records:
-  - concept: variety                # which entity type this produces
-    from: v_variety_display         # one read - a table or a view
-    id: 'variety:{key}'             # stable id, derived from the source key
-    label: '{name}'
-    note: '{note}'
-    attrs:                          # ordered; this IS the display order
+  - concept: variety              # what kind of thing this makes
+    from: v_variety_display       # which table or view to read
+    id: 'variety:{key}'           # its permanent id
+    label: '{name}'               # what a person sees
+    attrs:                        # the details, in the order they appear on screen
       - { key: Variety code,      value: '{code}' }
       - { key: Calibration state, value: '{calibration}' }
-    usage:                          # raw numbers, for sorting and bars
+    usage:                        # the numbers, used for sorting and bars
       plots:    { from: column, name: plots }
       expected: { from: column, name: expected }
 ```
 
+Anything in curly braces is a column name. `{name}` means "put the `name` column here".
+
 ### One row, followed all the way through
 
-Here is the actual row for Kufri Pukhraj and what it becomes.
-
-<img src="diagrams/one-row-mapped.svg" alt="One database row followed through the mapping into a record" width="100%">
+<img src="diagrams/one-row-mapped.svg" alt="A database row becoming a thing in the graph" width="100%">
 
 <details>
 <summary>Mermaid source</summary>
 
 ```mermaid
 flowchart LR
-  subgraph DB["v_variety_display"]
-    ROW["key = kufri_pukhraj<br/>name = Kufri Pukhraj<br/>code = VAR-POT-001<br/>calibration = Calibrated, 3 seasons<br/>plots = 3482<br/>expected = 28.0<br/>achieved = 26.8"]
+  subgraph DB["one row in the database"]
+    ROW["key = kufri_pukhraj<br/>name = Kufri Pukhraj<br/>code = VAR-POT-001<br/>plots = 3482<br/>expected = 28.0<br/>achieved = 26.8"]
   end
-  subgraph MAP["mappings/default.yaml"]
-    T["id: variety:{key}<br/>label: {name}<br/>attrs from columns<br/>usage from columns"]
+  subgraph MAP["the mapping file"]
+    T["id from key<br/>title from name<br/>details from columns<br/>numbers from columns"]
   end
-  subgraph OUT["one record in graph.json"]
-    REC["id: variety:kufri_pukhraj<br/>label: Kufri Pukhraj<br/>attrs: Variety code, Seed source,<br/>Maturity class, Calibration state,<br/>Seasons of history<br/>usage: plots 3482, expected 28,<br/>achieved 26.8"]
+  subgraph OUT["one thing in the graph"]
+    REC["Kufri Pukhraj<br/>3,482 plots<br/>28.0 expected<br/>26.8 achieved"]
   end
   ROW --> T --> REC
 ```
+
 </details>
+
+You can print exactly what came out:
 
 ```bash
 npm run graph -- explain dist/demo/graph.json --node variety:kufri_pukhraj
 ```
 
-### And one row becomes a link, with a weight
+### And a row becomes a connection, with a count on it
 
 ```yaml
 links:
-  - rel: grown in region
-    from_table: agg_variety_region        # variety_key, region_key, plots
+  - rel: grown in region                # the kind of connection
+    from_table: agg_variety_region      # a table of variety, region, plots
     from: 'variety:{variety_key}'
     to: 'region:{region_key}'
-    weight: { from: column, name: plots }
+    weight: { from: column, name: plots }   # the number that rides along on it
 ```
 
-Five rows for Kufri Pukhraj become five weighted links:
+Five rows about Kufri Pukhraj become five connections, each carrying a plot count:
 
-| to | plots |
+| connected to | plots |
 |---|---|
 | Gujarat | 1,428 |
 | Uttar Pradesh | 1,114 |
 | Punjab | 487 |
 | West Bengal | 279 |
 | Haryana | 174 |
-| **sum** | **3,482** — exactly the variety's own plot count |
+| **total** | **3,482** — exactly the variety's own plot count |
 
-That sum being exact is not luck; it is [checked on every build](#8-deriving-the-numbers-the-evidence-rule).
+That total matching is not a coincidence. It is checked on every build, in
+[Step 8](#step-8--we-check-that-everything-adds-up).
 
-### Formatting belongs to the mapping
+### Making numbers look right
 
-`attrs` values are display-ready strings, so `{num:gdd} GDD` produces `1,180 GDD`. Formatters: `num`
-(Indian digit grouping), `one` (one decimal), `signed` (`+8.6` / `-8.6`), `yesno`, `slug`, `upper`.
+Screen text is prepared in the mapping file, not in the database. `{num:gdd} GDD` turns `1180` into
+`1,180 GDD`. There are a handful of these helpers: `num` (adds commas), `one` (one decimal place),
+`signed` (adds a `+` or `−`), `yesno`, and a couple more.
 
-**Why here rather than in SQL:** a view should not have to know that this tenant reads numbers in Indian
-grouping. Aggregation is a database concern; presentation is a mapping concern.
+Why here and not in the database? Because a database view should not have to know that this particular
+customer likes commas in a particular place. Counting is the database's job; formatting is the mapping
+file's job.
 
-### Four rules the mapping layer enforces
+### Four rules the mapping file must follow
 
 | Rule | Why |
 |---|---|
-| One read per record type, link type and metric | N+1 cannot be expressed, so it cannot happen |
-| Every read is tenant-scoped unless it explicitly opts out | one build, one tenant, no leakage |
-| Reads only | see [§3](#3-connecting-to-it-and-why-read-only-is-enforced) |
-| An unresolved slot means the field is omitted | a null column must not ship `"{note}"` as prose |
+| One read per kind of thing | You cannot accidentally write something that fires a query per row |
+| Always filter to one customer | One build, one customer, no mixing |
+| Reading only | See [Step 2](#step-2--we-connect-to-it-and-we-can-only-read) |
+| If a value is missing, leave the field out | Never show a placeholder as though it were real text |
 
-> That last rule is a real bug that got caught, not a hypothetical. A note mapped from an empty column
-> shipped the literal string `{note}` on 198 of 338 records. It was found because the synthetic and
-> database paths are required to produce the *same document*, and they differed.
+> That last rule came from a real bug. A note pulled from an empty column was printing the literal text
+> `{note}` on 198 of 338 things. We found it because the two ways of building the graph — from our made-up
+> data and from the database — have to produce *identical* results, and they did not match.
 
 ---
 
-## 6. The ontology: what the graph believes exists
+## Step 5 — We tell the graph what each thing *is*
 
-Six layers, 23 entity types, 33 relationships. Version-controlled YAML in `ontology/`, identical for
-every tenant, because it is **product knowledge, not customer data**.
+The mapping file says where data comes from. Something else has to say what it *means*. That is the
+**ontology** — a grand word for a small set of files describing the vocabulary.
 
-<img src="diagrams/ontology-layers.svg" alt="The six layers and 23 entity types" width="100%">
+It is the same for every customer, because it describes how Cropin works, not what one customer has set
+up. It lives in `ontology/` as plain text files you can read and edit.
+
+<img src="diagrams/ontology-layers.svg" alt="The six groups and the kinds of thing in each" width="100%">
 
 <details>
 <summary>Mermaid source</summary>
 
 ```mermaid
 flowchart TB
-  subgraph L1["Crop hierarchy"]
+  subgraph L1["What you grow"]
     direction LR
     a1[Crop] --> a2[Variety] --> a3[Sub Variety]
   end
-  subgraph L2["Crop configuration"]
+  subgraph L2["How you set it up"]
     direction LR
     b1[Growth Stage]
     b2[Crop Parameters]
@@ -369,21 +402,21 @@ flowchart TB
     b4[Seed Grade]
     b5[Harvest Grade]
   end
-  subgraph L3["Where and when it is grown"]
+  subgraph L3["Where and when"]
     direction LR
     c1[Region]
     c2[Season]
     c3[Soil Type]
     c4[Irrigation Type]
   end
-  subgraph L4["Plan and field activity"]
+  subgraph L4["The work in the field"]
     direction LR
     d1[Plan Type] --> d2[Crop Plan] --> d3[Plan Activity]
     d3 --> d4[Plan Attribute]
     d3 --> d5[Resource or Input]
     d3 --> d6[Form]
   end
-  subgraph L5["Disease, pest and alerts"]
+  subgraph L5["What goes wrong"]
     direction LR
     e1[Disease or Pest]
     e2[Alert Type]
@@ -401,114 +434,130 @@ flowchart TB
   L5 --> L6
   L2 --> L6
 ```
+
 </details>
 
-### Two tiers in one graph
+**23 kinds of thing, in 6 groups, joined by 33 kinds of connection.**
 
-Every node is either a **concept** (an entity type) or a **record** (an actual configured value). Both
-are navigable, because a user has two questions at once:
+### Two levels in one graph
 
-- *What is a harvest grade, and how should I choose one?* → the concept
-- *Which harvest grades do we already use for potato, and on how many plots?* → the records
+Everything on the graph is one of two levels:
 
-A concept carries a `definition` (what it is) **and** a `decide` (how to choose it — advice, not
-description). That second field is why the tool can help someone who has never configured a grade before.
+- a **kind of thing** — "Variety", "Harvest Grade"
+- an **actual thing** — "Kufri Pukhraj", "Chips Grade A"
 
-### Relations carry their own display language
+You can click either, because people have both questions at once:
+
+- *What is a harvest grade, and how do I choose one?* → the kind
+- *Which harvest grades do we already use for potato, and on how many plots?* → the actual ones
+
+Each kind of thing carries two pieces of writing: **what it is**, and **how to choose it**. The second is
+advice, not a definition. It is what lets the screen help somebody who has never set up a harvest grade
+before.
+
+### Connections carry their own wording
+
+Here is one connection type, exactly as written down:
 
 ```yaml
 - key: variety of
   order: 10
-  forward: Crop it belongs to        # read from a variety
-  reverse: Varieties configured      # read from a crop
-  weighted: true
-  cardinality: many_to_one
+  forward: Crop it belongs to        # heading when you're looking at a variety
+  reverse: Varieties configured      # heading when you're looking at a crop
+  weighted: true                     # does a plot count ride on this connection?
   pairs:
-    - { from: variety, to: crop }
+    - { from: variety, to: crop }    # what may be joined to what
 ```
 
-**Why headings live in the data.** `← applies to Potato` is unreadable. A relation ships a plain-English
-heading *per direction*, plus an `order` so panel sections appear in a stable, sensible sequence. An
-invariant asserts that a raw relation key can never reach the UI.
+Three things worth noticing.
 
-**`pairs` is the schema for the schema.** A link whose endpoint concepts are not a declared pair is a
-build failure, not a warning. The earlier prototypes had no such constraint and it was the main source of
-silent error.
+**Every connection has two headings, one per direction.** Reading `← applies to Potato` on a screen is
+horrible. So a connection stores real English for both directions. On a variety the section is headed
+*"Crop it belongs to"*. On the crop, the same connection reads *"Varieties configured"*.
 
-**`weighted` decides whether the plot count applies.** Unweighted relations exist so a total can never be
-counted twice through two different paths: a region's plot count sums `grown in region`, and the sowing
-windows and observations that also point at that region contribute nothing to it. 191 of 1,149 links in
-the demo are unweighted by design, and the viewer says so rather than letting a reader assume a missing
-number is a zero.
+**`pairs` says what is allowed to connect to what.** If data tries to join a variety where a crop belongs,
+the build stops. An earlier prototype had no such rule and that was its biggest source of quiet mistakes.
+
+**`weighted` says whether a plot count belongs on this connection.** Some connections are just statements
+of fact with no count behind them — 191 of our 1,149 are like this, on purpose. The screen shows them as
+having no number rather than a zero, because "we don't count this" and "this is zero" mean very different
+things.
 
 ---
 
-## 7. Building the graph
+## Step 6 — We assemble the graph
 
-<img src="diagrams/build.svg" alt="The build stage and its guards" width="100%">
+<img src="diagrams/build.svg" alt="Assembling the graph, and the checks that stop a bad build" width="100%">
 
 <details>
 <summary>Mermaid source</summary>
 
 ```mermaid
 flowchart LR
-  A["records + links<br/>from the source"] --> B["index by id"]
-  B --> C["sort deterministically"]
-  C --> D["build adjacency"]
-  D --> E["in-memory graph"]
-  B --> F{"guards"}
-  F --> G["duplicate id"]
-  F --> H["unknown concept"]
-  F --> I["id prefix disagrees with concept"]
-  F --> J["wrong tenant"]
-  F --> K["source supplied a derived number"]
-  G --> L["build fails, naming every offender at once"]
+  A["things and connections<br/>from the database"] --> B["file them by id"]
+  B --> C["put them in a fixed order"]
+  C --> D["work out what connects to what"]
+  D --> E["the graph, in memory"]
+  B --> F{"stop if..."}
+  F --> G["two things share an id"]
+  F --> H["a thing has an unknown type"]
+  F --> I["its id does not match its type"]
+  F --> J["it belongs to another customer"]
+  F --> K["a number was typed in that we should be adding up"]
+  G --> L["stop, and list every problem at once"]
   H --> L
   I --> L
   J --> L
   K --> L
 ```
+
 </details>
 
-**IDs are stable across rebuilds.** A record id is `<concept_key>:<snake_key>`, derived from the source
-primary key through a documented slug function - never from row order or a display label. That is what
-makes `cropin-graph diff` between two rebuilds meaningful.
+Two details worth knowing.
 
-**Concept membership** (`record.concept`) is an attribute in the document and an edge for traversal. It
-keeps 338 membership rows out of `links`, so `meta.counts` means what it says, while leaving every
-concept reachable from its own records.
+**Ids never change between builds.** An id looks like `variety:kufri_pukhraj` — the kind of thing, then a
+tidied-up version of its key from the database. It is never based on row order or on the display name.
+That is what makes it possible to compare two builds and see what genuinely changed:
+
+```bash
+npm run graph -- diff dist/demo/graph.json dist/demo/graph.prev.json
+```
+
+**When something is wrong, we list everything.** The build does not stop at the first problem and make you
+run it again five times. It collects them all and prints them together, each naming the exact thing at
+fault.
 
 ---
 
-## 8. Deriving the numbers: the evidence rule
+## Step 7 — We work out all the numbers
 
-This is the heart of the project. If you explain one thing, explain this.
+This is the heart of the project. If you only explain one thing, explain this.
 
-> **Exactly one class of number is entered by hand. Every other total is summed from the links at build
-> time. Because of that, no two numbers in the graph can contradict each other — and it is tested, not
-> asserted.**
+> **Only one kind of number is typed in by a person. Every other number is added up from the connections.
+> That is why no two numbers on the graph can disagree — and we test it rather than claiming it.**
 
-<img src="diagrams/derive.svg" alt="The evidence rule: primary, rollups, computed, summaries" width="100%">
+<img src="diagrams/derive.svg" alt="How the numbers are worked out and then checked" width="100%">
 
 <details>
 <summary>Mermaid source</summary>
 
 ```mermaid
 flowchart TD
-  P["PRIMARY - entered<br/>variety plots, growers, projects,<br/>expected and achieved yield,<br/>crop plan plots, alert area,<br/>observation and DEWS figures"]
-  P --> R["ROLLUPS - 16 rules<br/>sum the weighted incoming links"]
-  R --> C["COMPUTED - 3 rules<br/>arithmetic over the metrics"]
-  C --> S["SUMMARIES - 45<br/>generated prose, never authored"]
-  R --> V["PARTITIONS<br/>a split must re-sum to its parent exactly"]
-  R --> X["CROSS CHECKS<br/>the same fact stated at two levels must agree"]
-  V --> T["validate recomputes all of it<br/>independently and compares"]
+  P["TYPED IN<br/>plots, growers and projects per variety,<br/>expected and achieved yield,<br/>alert area, and the observation records"]
+  P --> R["ADDED UP - 16 rules<br/>total the counts on the<br/>connections coming in"]
+  R --> C["CALCULATED - 3 rules<br/>simple arithmetic on those totals"]
+  C --> S["WRITTEN UP - 45 summaries<br/>a sentence generated from the data"]
+  R --> V["SPLITS<br/>a breakdown must add back<br/>up to its parent, exactly"]
+  R --> X["DOUBLE ENTRIES<br/>the same fact stored in two<br/>places must agree"]
+  V --> T["then we recalculate all of it<br/>a second way and compare"]
   X --> T
 ```
+
 </details>
 
-### Worked example: where Potato's 8,101 plots come from
+### Where Potato's 8,101 plots come from
 
-Nobody typed 8,101. Six variety plot counts were entered; the crop total is their sum:
+Nobody typed 8,101. Six variety counts were typed in. The crop total is their sum:
 
 ```
 Kufri Pukhraj      3,482
@@ -518,232 +567,243 @@ Lady Rosetta         964
 Santana              412
 Kufri Bahar          188
                   ------
-Potato             8,101   ← rollup: sum of incoming "variety of" link weights
+Potato             8,101      added up from the connections
 ```
 
-And Kufri Pukhraj's own 3,482 must partition exactly across every context:
+### And Kufri Pukhraj's 3,482 has to split perfectly, every way you cut it
 
-| Split | Values | Sum |
+| Broken down by | The pieces | Adds up to |
 |---|---|---|
-| regions | 1,428 + 1,114 + 487 + 279 + 174 | **3,482** |
-| seasons | 3,238 Rabi + 244 Spring | **3,482** |
-| soil types | alluvial + sandy loam + clay loam | **3,482** |
+| region | 1,428 + 1,114 + 487 + 279 + 174 | **3,482** |
+| season | 3,238 Rabi + 244 Spring | **3,482** |
+| soil type | alluvial + sandy loam + clay loam | **3,482** |
 | irrigation | furrow + sprinkler + drip | **3,482** |
-| sub varieties | 2,210 table stock + 1,272 seed stock | **3,482** |
+| sub variety | 2,210 table stock + 1,272 seed stock | **3,482** |
 
-### And a cross-check, because the same fact is stated twice
+### And where the same fact is stored twice, both copies must match
 
-Late Blight appears at two levels: `Potato → prone to → Late Blight` and `each variety → susceptible →
-Late Blight`. Those must agree:
+Late Blight appears in two places: on the crop ("Potato is prone to Late Blight") and on each variety
+("this variety had Late Blight recorded"). Those have to agree:
 
 ```
-Kufri Pukhraj  1,811   (52% of 3,482)
+Kufri Pukhraj  1,811      (52% of its 3,482 plots)
 Kufri Jyoti      796
 Kufri Chipsona   598
 Lady Rosetta     540
 Santana          169
               ------
-Late Blight    3,914   = the crop-level "prone to" weight, exactly
+Late Blight    3,914      and the crop-level number is also 3,914
 ```
 
-### Why weights do not decay with age
+### Why we don't make old seasons count for less
 
-A tempting idea: discount old seasons. **Rejected**, because a decayed weight is a number nobody can
-reconstruct, and reconstructability is the entire value of these weights. Two seasons at half weight and
-one at full weight read identically, which destroys the distinction the user needs.
+It sounds sensible: give last season more weight than one from four years ago. **We decided not to**, for
+one reason. A discounted number is a number nobody can reconstruct. Two old seasons at half weight and one
+recent season at full weight would look identical on screen, which hides exactly the thing you need to
+know.
 
-What a user actually needs is to know *how much history is behind a number*. So that is stated
-directly: every variety carries `Seasons of history` and `Calibration state`, shown beside the gap. A
-variety with one season on the base model will read as underperforming whatever the field did — that is
-a fact about the model, not the field, and it belongs on screen rather than smeared into a weight.
+What people actually need is to know *how much history is behind a number*. So we say it outright. Every
+variety shows **how many seasons of history** it has and whether the models are **calibrated** for it. A
+variety with one season sits on a generic model and will look like it is underperforming no matter what
+the field did — that is a fact about the model, not the crop, and it belongs on the screen in words.
 
-### One naming honesty
+### One small piece of honesty about a name
 
-Resource, plan attribute and form roll up a metric called `used_on`, not `plots`. The sets behind those
-links overlap — one plot appears under many activities — so summing activity plot counts gives an
-*occurrence* count, not a plot count. Calling it `plots` would have been a lie in the same key everything
-else tells the truth in. The viewer captions it "Times used".
+Three kinds of thing — resources, captured fields and forms — show a number called **"Times used"** rather
+than "Plots". Here is why. One plot involves many activities, so adding up the plot counts of those
+activities counts the same plot several times over. It is a real measure of how widely something is
+reused, but it is not a plot count, so we don't call it one.
 
 ---
 
-## 9. Proving it: the invariants
+## Step 8 — We check that everything adds up
 
-Sixteen checks. Each names the offending ids, because a count tells you a build is broken and an id tells
-you why. `--strict` is the default, so any failure is a non-zero exit.
+Sixteen checks run on every build. Each names the exact things at fault, because "3 errors" tells you the
+build is broken and "these three ids" tells you why. In the code these are called *invariants* — things
+that must always be true.
 
-| # | Check | What it actually catches |
+| # | The check | A real thing it catches |
 |---|---|---|
-| 1 | No dangling endpoints | a link to an id that does not exist |
-| 2 | Every relation is registered | a typo in a mapping's `rel` |
-| 3 | Every link matches an allowed concept pair | a variety linked where a crop belongs |
-| 4 | Cardinality holds | two crops claiming the same growth stage |
-| 5 | No orphan records | a record nothing points at, which no user can reach |
-| 6 | ID format and prefix agreement | `crop:potato` filed under Variety |
-| 7 | No duplicate labels within a concept (or its `label_scope`) | two records a user cannot tell apart |
-| 8 | Rollup, partition and cross-check arithmetic | a total that does not match its parts |
-| 9 | Single connected component | an island no navigation can reach |
-| 10 | Parity with the reference document | drift: 23 / 338 / 1,149 |
-| 11 | Idempotence | non-determinism that would make diffs meaningless |
-| 12 | Viewer smoke test in a real browser | a document that renders as nothing |
-| 13 | Every relation has both headings and an order | a raw relation key reaching the UI |
-| 14 | No tenant leakage | another tenant's row in this document |
-| 15 | Attributes declared and in display order | a panel in the wrong order |
-| 16 | A re-validated document matches what its own links imply | a hand-edited file |
+| 1 | Every connection points at something that exists | a connection to a deleted thing |
+| 2 | Every connection is a known type | a typo in the mapping file |
+| 3 | Only allowed pairs are connected | a variety joined where a crop belongs |
+| 4 | One-to-many rules are respected | two crops claiming the same growth stage |
+| 5 | Nothing is stranded | a thing with no connections, which nobody could ever find |
+| 6 | Ids match their type | `crop:potato` filed under Variety |
+| 7 | No two things share a name | two records a person cannot tell apart |
+| 8 | All the arithmetic | a total that doesn't match its parts |
+| 9 | Everything is reachable | an island cut off from the rest |
+| 10 | Nothing drifted since last time | we expect 23 kinds, 338 things, 1,149 connections |
+| 11 | Building twice gives the same file | randomness that would make comparisons useless |
+| 12 | It actually renders in a browser | a file that draws as nothing |
+| 13 | Every connection has real English headings | a raw code name leaking onto the screen |
+| 14 | No other customer's data is present | the worst possible bug |
+| 15 | Details are in the right order | a panel showing fields jumbled |
+| 16 | A saved file still matches its own connections | somebody hand-edited the output |
 
-**8 and 16 do not subsume each other**, and a test pins that down. Check 8 recomputes totals from links
-and compares — it proves *internal consistency*, so after a re-derive it passes even if a link weight was
-edited, because the total was rebuilt from the edited weight. Check 16 compares against what the
-document *claimed*, which is the only place that edit shows up.
+**Checks 8 and 16 sound the same but are not**, and there is a test that proves it. Check 8 recalculates
+the totals from the connections and compares, so it proves the file is *self-consistent*. If somebody
+edited a connection's count, check 8 would recalculate from the edited number and be perfectly happy.
+Check 16 compares against what the file *claimed* earlier, which is the only place that edit shows up.
 
-**Three invariants were changed by a deliberately-degraded fixture tenant** — the checks were wrong, not
-the tenant:
+**Three of these checks were wrong, and a deliberately broken test customer proved it.** We fixed the
+checks, not the data:
 
-1. Growth stages, grades and diseases are crop-scoped vocabularies. Two crops may both have a stage
-   called "Harvest" and that is correct, so uniqueness is scoped by a declared attribute rather than
-   renaming everything to "Potato Harvest".
-2. A partition over a relation a tenant does not use at all is vacuous, not a contradiction.
-3. A concept with no records is a coverage gap, not a graph island.
+1. Two crops can both have a stage called "Harvest". That is correct, not a clash — so names only need to
+   be unique *within a crop*. The alternative was renaming everything to "Potato Harvest", which reads
+   badly in the place the name is actually used.
+2. If a customer doesn't use irrigation types at all, "the irrigation breakdown must add up" has nothing
+   to check. That is not a failure.
+3. A kind of thing with nothing set up against it is a gap to report, not a broken graph.
 
 ---
 
-## 10. Publishing: four ways to reach the same document
+## Step 9 — We publish it
 
-<img src="diagrams/publish.svg" alt="Four ways to reach the same document" width="100%">
+Everything above produces **one file**: `graph.json`. That file is the whole graph. There are four ways to
+get it in front of someone.
+
+<img src="diagrams/publish.svg" alt="Four ways to reach the same file" width="100%">
 
 <details>
 <summary>Mermaid source</summary>
 
 ```mermaid
 flowchart LR
-  D["graph.json<br/>the canonical document"]
-  D --> A["a file<br/>dist/demo/graph.json"]
-  D --> B["the graph store<br/>kg_concepts / kg_records /<br/>kg_links / kg_builds"]
-  D --> C["the API<br/>/api/graph, /api/node/:id,<br/>/api/route, /api/search"]
-  D --> E["one self-contained HTML<br/>viewer + document inlined"]
-  A --> V["the viewer"]
+  D["graph.json<br/>one file, the whole graph"]
+  D --> A["a file on disk"]
+  D --> B["saved into the database<br/>so it can be served"]
+  D --> C["a small web service"]
+  D --> E["one self-contained web page<br/>with the data inside it"]
+  A --> V["the screen people use"]
   B --> C
   C --> V
   E --> V
 ```
+
 </details>
 
-| Mode | For | Needs |
+| Way | Good for | What it needs |
 |---|---|---|
-| **file** | local work, CI, diffing two rebuilds | nothing |
-| **static site** | the deployed platform | nothing — the viewer reads the document beside it |
-| **graph store** | serving many tenants, other consumers | Supabase |
-| **single HTML** | handing to someone with no web server | nothing, not even a server |
+| **a file** | working locally, comparing two builds | nothing |
+| **a website** | the deployed tool | nothing — the page reads the file next to it |
+| **saved in the database** | serving several customers, other systems | Supabase |
+| **one web page** | emailing to someone | nothing at all, not even a server |
 
-The store round trip is exact: push then pull returns a **byte-identical** document that passes all 16
-invariants.
+That last one is genuinely one file. Double-click it with no internet and no server and the whole thing
+works.
 
-> That took two fixes. Postgres `jsonb` normalises objects and sorts their keys — so `attrs`, whose
-> insertion order *is* the display order, came back reordered on every record. The column is `json` now,
-> and pull restores the order from the ontology regardless, because any store that normalises would do
-> the same thing.
+> Saving into the database and reading it back gives you a **byte-for-byte identical** file. Getting there
+> needed a fix. Postgres has a storage type that quietly re-sorts the fields inside a record, which
+> scrambled the order of the details on screen. We switched to the type that keeps the order, and we also
+> re-apply the correct order when reading, so any future storage that reshuffles cannot break it.
 
 ---
 
-## 11. What a user sees, and what they do with it
+## Step 10 — Someone uses it
 
-### Five views, one question each
+### Five ways to look, one question each
 
-| View | The question |
+| View | The question it answers |
 |---|---|
-| **Attached** | What is joined directly to this, and how heavily? |
+| **Attached** | What is directly connected to this, and how strongly? |
 | **Drill down** | What does this lead to? |
-| **Where used** | What leads here — what depends on this? |
-| **All entity types** | What is in this graph at all? |
+| **Where used** | What depends on this? |
+| **All entity types** | What is in here at all? |
 | **Route** | How are these two things connected? |
 
-Nothing uses a force simulation. Physics layouts jitter, overlap, and hand you a different picture every
-load — useless for something people are meant to read the same way twice. Every position is a function
-of the data and the mode.
+**Thick lines mean more plots.** A thick connection is something the organisation has done many times; a
+thin one is an experiment. You read that before you read any words, which is the point.
 
-**Edge thickness is the historical plot count.** A thick link is a proven combination; a thin one is an
-experiment. That is read before any label, which is exactly the point.
+**Nothing bounces around.** Many graph tools use a physics simulation, so the picture is different every
+time you open it and labels overlap. Ours puts every item in a calculated position, so the same thing is
+always in the same place and no two labels ever collide.
 
-### The panel order, and why it is that order
+### The order of the side panel, and why it is that order
 
-<img src="diagrams/panel-order.svg" alt="The panel order a user reads" width="100%">
+<img src="diagrams/panel-order.svg" alt="The order information appears in the side panel" width="100%">
 
 <details>
 <summary>Mermaid source</summary>
 
 ```mermaid
 flowchart TD
-  A["1 · Summary<br/>generated from the record's own links"] --> B["2 · What the history says<br/>plots, growers, gap - with bars"]
-  B --> C["3 · What is configured<br/>the display attributes, in declared order"]
-  C --> D["4 · The relationships<br/>question-shaped headings, heaviest first"]
-  D --> E["5 · How to decide<br/>advice from the ontology"]
-  E --> F["6 · What it is<br/>definition, and the source table"]
+  A["1. A sentence summing it up<br/>written automatically from the data"] --> B["2. What the history says<br/>plots, growers, the gap - with bars"]
+  B --> C["3. What is set up<br/>the details, in order"]
+  C --> D["4. What it connects to<br/>plain English headings, biggest first"]
+  D --> E["5. How to decide<br/>advice for this kind of thing"]
+  E --> F["6. What it is<br/>the definition, and where it came from"]
 ```
+
 </details>
 
-A user arriving at a record wants the answer, then the evidence, then — only if still unsure — what the
-thing is and how to choose it. Putting the definition first would make it a glossary.
+Someone opening a variety wants the answer first, then the evidence, then — only if still unsure — what
+the thing is and how to choose it. Putting the definition first would turn a decision tool into a
+dictionary.
 
-### A full session, worked
+### A real session, start to finish
 
-**Question:** should Lady Rosetta stay on the processing contract in Gujarat?
+**The question: should Lady Rosetta stay on the processing contract in Gujarat?**
 
-| Step | What the graph shows | What it means |
+| What they do | What the screen shows | What it means |
 |---|---|---|
-| 1. Search "Lady Rosetta" | 964 plots, 505 growers, 7 projects | enough history to be worth reading |
-| 2. Read the evidence | achieved 27.4 against 32.0 expected, **−14.4%** | a real shortfall |
-| 3. Check calibration | "Calibrated, 2 seasons" | so the gap is evidence, not base-model noise |
-| 4. Regions it is grown in | Gujarat 675 of 964 plots | the problem is mostly one region |
-| 5. Season outcome record | 6 days above 36 °C during tuber bulking; **58% chips grade A** against an 80% expectation | the yield gap and the grade failure are *one event* |
-| 6. Stage observation | Gujarat tuber bulking ran **32 days** against 35 configured (−9%); the same stage ran **38 days** in Uttar Pradesh (+9%) | one national stage set cannot serve both regions |
-| 7. Sub variety | LR Processing Lot promises "80 percent chips grade A" | the promise was never revised after season one |
+| 1. Search "Lady Rosetta" | 964 plots, 505 growers, 7 projects | enough history to be worth trusting |
+| 2. Read the numbers | got 27.4 against 32.0 expected — **14.4% short** | a real shortfall |
+| 3. Check the history | "Calibrated, 2 seasons" | this is evidence, not a generic model guessing |
+| 4. Look at regions | Gujarat: 675 of the 964 plots | the problem is mostly in one place |
+| 5. Open the season record | 6 days above 36 °C during bulking; **58% top grade** against 80% promised | the low yield and the failed grade are **one event**, not two problems |
+| 6. Open the stage record | in Gujarat that stage ran **32 days**, not the 35 set up. In Uttar Pradesh it ran **38** | one national setup cannot fit both regions |
+| 7. Check the promise | the lot promises "80 percent chips grade A" | never revised after the first season |
 
-**Three configuration changes fall out of that, and they are different changes:**
+**Three different fixes come out of that:**
 
-1. **Revise the grade expectation** on the sub variety — separately from the yield expectation on the
-   variety. They failed together but they are not the same promise.
-2. **Give Gujarat its own stage durations.** Activities anchored to the end of bulking currently fire
-   after the crop has finished bulking there, and early in Uttar Pradesh, from one configuration.
-3. **Configure a sowing window** for potato × Gujarat × Rabi, so a late sowing date is caught at entry
-   instead of propagating silently into stage, progression, harvest window and yield.
+1. **Change the grade promise** — separately from the yield expectation. They failed together, but they
+   are two different promises to two different people.
+2. **Give Gujarat its own stage lengths.** Right now, work scheduled for the end of that stage happens
+   *after* the crop has finished it in Gujarat, and too early in Uttar Pradesh, from the same setup.
+3. **Set a sowing window** for potato in Gujarat in Rabi, so a late sowing date gets caught as it is typed
+   in, instead of quietly throwing off every prediction that counts from it.
 
-Then the loop closes: the next rebuild reads those changes back, and the weights move. **The graph never
-writes to a master. It shows; a person decides.**
+Then the loop closes. Someone makes those changes in Cropin, the next build reads them back, and the
+numbers move. **The graph never writes anything. It shows; a person decides.**
 
-### Using Route: "how are these two things connected?"
+---
 
-The other four views start from one node and show what surrounds it. Route starts from **two** nodes and
-shows the chain between them, with the relationship written on every link. It answers the question you
-cannot ask a report, because you would have to already know the answer to write the query.
+## How to use Route
 
-#### In the viewer
+The other four views start from one thing. Route starts from **two**, and shows the chain between them
+with the relationship written on every step. It answers a question you can't easily ask a report, because
+to write the report you would have to already know the answer.
 
-<img src="diagrams/route-how-to.svg" alt="Setting the two ends of a route in the viewer" width="100%">
+<img src="diagrams/route-how-to.svg" alt="Picking the two ends of a route" width="100%">
 
 <details>
 <summary>Mermaid source</summary>
 
 ```mermaid
 flowchart LR
-  A["Find the first node<br/>search, or click it on the canvas"] --> B["Panel: click<br/>Route from here"]
-  B --> C["Mode switches to Route<br/>left rail shows: from ✓  to ▢"]
-  C --> D["Find the second node<br/>search the left rail"]
-  D --> E["Panel: click<br/>Route to here"]
-  E --> F["The chain draws,<br/>with a heading on every hop"]
+  A["find the first thing<br/>search for it, or click it"] --> B["click<br/>Route from here"]
+  B --> C["the view switches to Route"]
+  C --> D["find the second thing<br/>using the search box"]
+  D --> E["click<br/>Route to here"]
+  E --> F["the chain appears,<br/>labelled at every step"]
 ```
+
 </details>
 
-Two ways to set the ends:
+### On screen
 
-- **From the panel.** Open any node and click **Route from here**, then find the second and click
-  **Route to here**. This is the reliable way, because search reaches every node.
-- **By clicking the canvas.** While in Route mode, the first click sets `from`, the second sets `to`, and
-  a third starts a new route. Faster when both nodes are already on screen.
+Two ways to pick the ends:
 
-The left rail shows both ends with a `×` to clear either one. Until both are set, Route falls back to
-showing the Attached view of whichever end you have picked - so you can keep exploring while choosing the
-second end.
+- **Using the panel.** Open anything and click **Route from here**. Then search for the second thing and
+  click **Route to here**. This always works, because search finds everything.
+- **Clicking the picture.** While you are in Route view, your first click sets the start, the second sets
+  the end, and a third starts over. Quicker when both are already visible.
 
-#### On the command line
+The left-hand side shows both ends with an `×` to clear either. Until you have picked both, Route just
+shows the normal Attached view of whichever end you have — so you can keep exploring while you decide.
+
+### On the command line
 
 ```bash
 npm run graph -- route dist/demo/graph.json \
@@ -760,158 +820,144 @@ Chipsona Processing Rabi
 Grading and Sorting
   |  Form it is recorded on (3,261 plots)
 Harvest and Grading
-
-4 hops
 ```
 
-Read it as a sentence: *Gujarat grows Kufri Chipsona-1, which has the Chipsona Processing Rabi plan
-attached, which includes Grading and Sorting, which is recorded on the Harvest and Grading form.* That is
-the mechanism connecting a region to a form - four hops, none of which anyone had to know in advance.
+Read it as a sentence: *Gujarat grows Kufri Chipsona-1, which uses the Chipsona Processing Rabi plan,
+which includes Grading and Sorting, which is recorded on the Harvest and Grading form.* That is how a
+region connects to a form — four steps, and nobody had to know any of them in advance.
 
-#### Over the API
+### Four things about how it behaves
 
-```bash
-curl "http://localhost:8787/api/route?tenant=demo&from=crop:potato&to=resource_or_input:cold_store_space"
-```
-
-Returns `hops` and a `steps` array, each step carrying `from`, `to`, `rel`, `forward`, `plots` and the
-`heading` already resolved for the direction it was traversed in.
-
-#### Four things about how it behaves
-
-| Behaviour | Why it is that way |
+| What it does | Why |
 |---|---|
-| **It traverses undirected** | Navigation is not causation. `Variety → prone to → Disease` is stored one way because that is the direction that reads as a fact, but a user may want to walk it backwards. Directed reachability across this graph is only about 70%; undirected is 100%. |
-| **Headings flip with direction** | The Gujarat route above shows *"Varieties grown here"*, which is the **reverse** heading of `grown in region`. Walk it the other way and the same link reads *"Regions it is grown in"*. That is exactly why every relation ships two headings. |
-| **It is deterministic** | Neighbours are visited in sorted id order, so the same pair always yields the same path. A route is safe to screenshot, cite in a document, or put in a test. |
-| **Concept hops appear as dashed links** | `record of` is how you cross between two records that share no direct link - up to the concept and back down. It is drawn dashed and carries no weight, because membership is not evidence. |
+| **It walks connections in either direction** | We store "variety → prone to → disease" that way round because that is how the sentence reads. But you might want to walk it backwards, so Route does. |
+| **Headings flip to match the direction** | In the example above it says *"Varieties grown here"* — the *reverse* wording of "grown in region". Go the other way and the same connection reads *"Regions it is grown in"*. This is exactly why every connection stores two headings. |
+| **The same two ends always give the same path** | So a route is safe to screenshot, paste into a document, or use in a test. |
+| **Dashed steps mean "is a kind of"** | Sometimes the only way between two things is up to their type and back down. Those steps are dashed and carry no count, because being the same kind of thing is not evidence. |
 
-#### Three questions worth routing
+### Three routes worth trying
 
-| Question | Route | What it tells you |
+| Question | Try | What you find |
 |---|---|---|
-| Does this configured risk have a response? | `disease_or_pest:stem_borer_rice` → `plan_activity:pheromone_trap_install` | **1 hop, 633 plots.** The mitigation exists in the ontology - but check the activity's own panel and it is in *no paddy crop plan*. A configured risk with no configured response. |
-| Why is this grade relevant to this variety? | `variety:lady_rosetta` → `harvest_grade:chips_grade_a` | **2 hops.** It is not attached to the variety at all - it reaches it through Potato, because grades are configured at crop level and used at variety level. |
-| How does an input trace back to a crop? | `crop:potato` → `resource_or_input:cold_store_space` | **5 hops**, through an alert, an activity and the plan that includes it. Useful for input-effectiveness questions, which is the whole reason input-led operations digitise. |
+| Does this risk have anything set up to deal with it? | `disease_or_pest:stem_borer_rice` → `plan_activity:pheromone_trap_install` | **One step, 633 plots.** The treatment exists… then open that activity and it is in **no paddy plan at all**. A risk with nothing set up to answer it. |
+| Why does this grade apply to this variety? | `variety:lady_rosetta` → `harvest_grade:chips_grade_a` | **Two steps.** It isn't attached to the variety — it reaches it via Potato, because grades are set up on the crop and used on the variety. |
+| How does an input trace back to a crop? | `crop:potato` → `resource_or_input:cold_store_space` | **Five steps**, through an alert, an activity, and the plan containing it. |
 
-> **A route with a short path is often the finding.** If two things you expected to be closely tied turn
-> out to be four hops apart through an unrelated concept, that gap *is* the configuration problem.
+> **A surprisingly long route is often the finding.** If two things you thought were closely tied turn out
+> to be four steps apart through something unrelated, that distance *is* the setup problem.
 
 ---
 
-## 12. The questions people will ask
+## Questions people ask
 
-**Why not a graph database?**
-The graph is small — low thousands of nodes, low tens of thousands of links per tenant. The hard work is
-aggregation over large operational tables, which a relational engine does far better. A graph database
-would buy nothing at this size and cost a dependency, an operational surface and a second query language.
-Revisit above roughly 100k nodes for one tenant.
+**Why not use a graph database?**
+The graph is small — a few thousand items. The heavy work is counting rows in huge operational tables,
+which a normal database does better than a graph one. A graph database would add a dependency, another
+thing to run and another query language, for no gain. Worth revisiting if one customer ever passes about
+100,000 items.
 
-**Why not just a BI dashboard or a SQL report?**
-A report answers a question you already knew to ask. The value here is *adjacency*: standing on Lady
-Rosetta and seeing, in one place, the regions, the stage deviations, the weather outcome and the grade
-promise — without knowing in advance that those four things were related. A dashboard would need a tile
-per question; the graph needs one screen.
+**Why not just build a dashboard?**
+A dashboard answers a question you already knew to ask. The value here is *what sits next to what*:
+standing on Lady Rosetta and seeing the regions, the stage timings, the weather and the grade promise all
+in one place — without knowing in advance that those four things were related. A dashboard would need a
+separate tile per question.
 
-**Is this a new source of truth?**
-No, and deliberately so. It is a derived artefact, rebuildable from scratch at any time. Delete it and
-nothing is lost. `meta.source_snapshot` says how fresh the underlying data is and `meta.built_at` says
-when the document was made; both are on screen.
+**Is this now the place where the truth lives?**
+No, deliberately. It is a copy that can be rebuilt from scratch at any time. Delete it and nothing is
+lost. The screen always shows how fresh the underlying data is and when the file was built.
 
 **What if the underlying data is wrong?**
-Then the graph is wrong in the same way, and says so louder. It cannot invent consistency — but it does
-make inconsistency visible: 191 links carry no historical count and are shown as such, missing metrics
-appear in `meta.coverage`, and a variety on the base model is labelled as such next to its gap.
+Then the graph is wrong in the same way — it cannot invent correctness. But it makes wrongness *visible*:
+191 connections openly carry no count, missing numbers are listed as missing, and a variety running on a
+generic model is labelled as such right next to its shortfall.
 
-**How is this different from the platform's own reports?**
-Those are organised around *this season's operations* — projects, tasks, plots. This is organised around
-*a configuration decision*, and it carries the ontology's advice on how to make it. Different axis,
-different question.
+**How is this different from Cropin's own reports?**
+Those are organised around running this season — projects, tasks, plots. This is organised around *making
+a setup decision*, and it carries advice on how to make it. Different axis, different question.
 
-**How do we add a new entity type?**
-Add it to `ontology/concepts.yaml` with its definition, `decide` advice, attribute order and source
-table; add the relations that reach it to `relations.yaml` with both headings and valid pairs; add a
-mapping entry. The ontology self-validates at import, so a mistake is a crash at startup rather than a
+**How do we add a new kind of thing?**
+Three small edits: describe it in `concepts.yaml` (what it is, how to choose it, where it comes from), add
+the connections that reach it in `relations.yaml` with both headings, and add an entry to the mapping
+file. The ontology checks itself when the program starts, so a mistake is an immediate error rather than a
 wrong number later.
 
-**How do we onboard a new tenant?**
-Copy `mappings/default.yaml`, point it at that tenant's tables, run one command. Nothing in `src/`
-changes. If their schema differs, only the mapping does.
+**How do we add a new customer?**
+Copy the mapping file, point it at their tables, run one command. No code changes.
 
-**How long does a rebuild take?**
-Under a second for the reference tenant end to end, including all 16 invariants. Scheduled rebuild is
-explicitly sufficient; there is no streaming and no need for it.
+**How long does a build take?**
+Under a second for the demo, including all sixteen checks. Running it on a schedule is plenty; nothing
+needs to be live.
 
-**Can one tenant see another's data?**
-Every record and link carries `tenant_id`, a build runs for exactly one tenant, and invariant 14 asserts
-no other tenant's rows appear. Cross-tenant benchmarking is deliberately **not built**; when it is, it
-belongs behind an explicit flag with a k-anonymity floor of 5+ tenants and 50+ plots, in place from the
-first line of code.
+**Can one customer see another's data?**
+Every item and connection records which customer it belongs to, a build runs for exactly one customer, and
+one of the sixteen checks fails if anything else appears. Comparing customers against each other is
+deliberately **not built** — when it is, it will only ever show a figure drawn from at least 5 customers
+and 50 plots, so nothing can be traced back to one of them.
 
-**What is real and what is synthetic?**
-The ontology is real product knowledge, traced term by term to the platform walkthrough. **Every record
-value in the demo tenant is invented** — realistic in shape, internally consistent, 6 crops and 22
-varieties and 25,761 plots that all reconcile, but nothing came from a real tenant.
+**What is real and what is made up?**
+The vocabulary is real, traced term by term to the Cropin walkthrough. **All the data in the demo is
+invented** — realistic and internally consistent, 6 crops and 22 varieties and 25,761 plots that all
+reconcile, but none of it from a real customer.
 
-**What is the biggest integration risk?**
-Three of the six `observed` concepts — Stage Observation, Season Weather and Outcome, DEWS History — are
-aggregations the platform *can compute* but does not expose as objects today. Each needs a query written
-against operational tables. `ontology/nomenclature.md` names them rather than burying them, because
-that is where the real work is.
+**What is the biggest risk in making this live?**
+Three of the "what actually happened" kinds of thing — stage timings, season outcomes, disease warning
+history — are things Cropin *can* work out but does not currently offer as a ready-made list. Each needs a
+query written. We say so plainly in `ontology/nomenclature.md` rather than hiding it, because that is
+where the real work is.
 
-**What would phase 2 be?**
-A write path: configuring *through* the graph, proposing changes back to the masters. Nothing is
-architected against it — the mapping layer already declares which platform field each graph value came
-from, which is exactly what a write path needs.
+**What would come next?**
+Letting people make the change *from* this screen, instead of reading it here and typing it into Cropin.
+Nothing blocks that: the mapping file already records which Cropin field each value came from, which is
+exactly what you need in order to write one back.
 
 **What are the honest limits?**
-Six crops and 22 varieties is enough to prove the model and nowhere near a real catalogue. Cost figures
-are indicative. Stage-set overrides are *identified* by the observed layer but not modelled. And the
-graph shows correlation with plot counts behind it — it does not establish causation.
+Six crops and 22 varieties proves the idea and is nowhere near a real catalogue. The costs are indicative.
+Region-specific stage lengths are *found* by the graph but not yet modelled in it. And the graph shows
+things that happened together, with plot counts behind them — it does not prove one caused the other.
 
 ---
 
-## 13. Cheat sheet
+## Cheat sheet
 
-**The one-sentence version.** A read-only knowledge graph over the Cropin masters that answers *what
-should I configure, and what does our own history say about that choice* — where every number except a
-variety's plot count is summed from the links, so no two figures on screen can disagree.
+**In one sentence.** A read-only screen over Cropin's own setup data that answers *what should I
+configure, and what does our history say about that choice* — where every number except a variety's plot
+count is added up from the connections, so nothing on screen can contradict anything else.
 
-**Numbers worth knowing**
+**Numbers worth remembering**
 
 | | |
 |---|---|
-| Entity types / relationships / layers | 23 / 33 / 6 |
-| Reference tenant | 338 records, 1,149 links, 25,761 plots |
+| Kinds of thing / connections / groups | 23 / 33 / 6 |
+| The demo customer | 338 things, 1,149 connections, 25,761 plots |
 | Crops / varieties / sub varieties | 6 / 22 / 17 |
-| Derivation rules | 16 rollups, 3 computed, 45 generated summaries |
-| Invariants | 16 (13 in-document, plus idempotence, browser smoke, re-validation) |
-| Graph shape | 1 component, longest path 7, mean 3.3 |
-| Unweighted links, by design | 191 of 1,149 |
-| Fixture database | 41 tables, 31 views |
-| Tests | 90 |
+| Rules for working out numbers | 16 add-ups, 3 calculations, 45 written summaries |
+| Checks on every build | 16 |
+| Longest path between any two things | 7 steps, 3.3 on average |
+| Connections with no count, on purpose | 191 of 1,149 |
+| Demo database | 41 tables, 31 views |
+| Automated tests | 90 |
 
 **Commands worth remembering**
 
 ```bash
-npm run build:demo          # build the reference tenant, no database needed
-npm run build:supabase      # build from the database through the mapping file
-npm run build:static        # what a deployment publishes
-npm run check               # secrets, types, tests
+npm run build:demo          # build using the made-up data, no database needed
+npm run build:supabase      # build from the real database
+npm run build:static        # build the website to deploy
+npm run check               # secrets, types and tests
 npm run graph -- explain dist/demo/graph.json --node variety:lady_rosetta
-npm run graph -- diff dist/demo/graph.json dist/demo/graph.prev.json
+npm run graph -- route   dist/demo/graph.json --from crop:potato --to region:gujarat
 ```
 
-**The three sentences that carry the design**
+**The three sentences that carry the whole design**
 
-1. *Only variety plot counts are entered; every other total is summed from the links and then recomputed
-   independently and compared.*
-2. *The ontology is global product knowledge; records and links are per tenant.*
-3. *It is read-only and derived — it shows, a person decides, and the next rebuild reads the change back.*
+1. *Only variety plot counts are typed in. Everything else is added up from the connections, then
+   recalculated a second way and compared.*
+2. *The vocabulary is shared by all customers; the data belongs to one.*
+3. *It only reads. It shows, a person decides, and the next build picks up the change.*
 
 ---
 
-**Related reading:** [`README.md`](../README.md) for the two sequence diagrams and the commands,
-[`ARCHITECTURE.md`](ARCHITECTURE.md) for the pipeline in detail, [`DECISIONS.md`](DECISIONS.md) for the
-eight open questions this build settled, [`DOMAIN.md`](DOMAIN.md) for the platform itself, and
+**More reading:** [`README.md`](../README.md) for the commands and the two overview diagrams,
+[`ARCHITECTURE.md`](ARCHITECTURE.md) for the technical detail, [`DECISIONS.md`](DECISIONS.md) for the
+harder calls and why, [`DOMAIN.md`](DOMAIN.md) for Cropin itself, and
 [`../ontology/nomenclature.md`](../ontology/nomenclature.md) for every term traced to its source.
