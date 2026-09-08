@@ -11,9 +11,19 @@ actually happened rather than against an opinion.
 
 ## Architecture
 
+Both diagrams are mermaid `sequenceDiagram` blocks, committed as SVG next to their source. The SVG is
+what the README shows, because mermaid only renders on github.com - a markdown preview in an editor
+shows the raw source instead. The source stays in a collapsed block under each diagram, and
+`npm run docs:diagrams` regenerates the SVG and a PNG from it.
+
 The same five stages run whether there is a database or not. Only the source adapter changes, and the
 two paths are required to produce the *same document* - that equality is a test, and it is what caught
 the two real defects in the mapping layer.
+
+<img src="docs/diagrams/architecture.svg" alt="Architecture sequence diagram" width="100%">
+
+<details>
+<summary>Mermaid source for this diagram</summary>
 
 ```mermaid
 sequenceDiagram
@@ -56,7 +66,7 @@ sequenceDiagram
     Note over Out: Two builds from unchanged input are byte identical,<br/>so a diff between runs means something.
 
     UI->>API: GET /api/graph?tenant=demo
-    API->>Out: read from disk, or pull from the kg_ store
+    API->>Out: read from disk, or pull from the kg tables
     API-->>UI: the document, unchanged
     Note over UI: The viewer imports nothing from src/. It reads the<br/>document alone, because one delivery mode is a single<br/>self-contained HTML file with no server behind it.
 
@@ -66,6 +76,7 @@ sequenceDiagram
         Note over DB: The only write in the project, and it writes to the<br/>graph store - never back to a platform master.
     end
 ```
+</details>
 
 ---
 
@@ -73,6 +84,11 @@ sequenceDiagram
 
 What it is built out of, why its numbers can be believed, the question it answers, the contradictions
 only it can see, and what changes as a result.
+
+<img src="docs/diagrams/flow.svg" alt="End-to-end flow sequence diagram" width="100%">
+
+<details>
+<summary>Mermaid source for this diagram</summary>
 
 ```mermaid
 sequenceDiagram
@@ -126,6 +142,7 @@ sequenceDiagram
         Note over Plat: Phase 1 is read-only: the graph shows, a person decides.<br/>The next rebuild reads those changes back and the weights<br/>move, which is how the loop closes without the graph ever<br/>writing to a master.
     end
 ```
+</details>
 
 ---
 
