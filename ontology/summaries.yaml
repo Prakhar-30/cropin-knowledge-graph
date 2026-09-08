@@ -12,27 +12,35 @@
 #   {attr:Attribute name}          a display attribute of the record
 #   {if:relation}...{else}...{endif}   branch on whether any link exists on that relation
 #   any relation may take a |reverse modifier to be read backwards
+#
+# Write templates so a count is never followed by a noun phrase it has to agree with - prefer
+# "Growth stages configured: 7" over "7 growth stages configured". Where a count does sit directly in
+# front of its noun, the renderer makes it agree in number.
 version: 1
 templates:
 
   - concept: crop
     template: >
-      {count:variety of|reverse} varieties configured across {plots} plots.
-      Mostly {top:variety of|reverse} at {top_weight:variety of|reverse} plots.
-      {count:has growth stage} growth stages configured and {count:graded by} grades in use.
+      {count:variety of|reverse} varieties across {plots} plots, mostly {top:variety of|reverse} at
+      {top_weight:variety of|reverse} plots.
+      Growth stages configured: {count:has growth stage}.
+      {if:graded by}Grades available: {list:graded by}.{else}No harvest grade configured.{endif}
       {if:prone to}Prone to {list:prone to}.{else}No disease or pest configured against it.{endif}
-      {if:alert observed}Worst agricultural alert observed is {top:alert observed}.{endif}
+      {if:alert observed}Worst agricultural alert observed is {top:alert observed}, on
+      {top_weight:alert observed} plots.{endif}
 
   - concept: variety
     template: >
-      {plots} plots, {growers} growers, {projects} projects.
-      Achieved {achieved} t/ha against {expected} expected, {gap_pct} percent.
+      {plots} plots{ifm:growers}, {growers} growers{endif}{ifm:projects}, {projects} projects{endif}.
+      {ifm:gap_pct}Achieved {achieved} against {expected} expected, {gap_pct} percent.{endif}
       Mostly {top:grown in region} ({top_weight:grown in region} plots), grown in {list:grown in season}.
-      Mainly {top:grown on soil} soil under {top:irrigated by}.
-      {count:sub variety of|reverse} sub varieties, {count:plan for variety|reverse} crop plans attached,
-      most used {top:plan for variety|reverse}.
-      {if:susceptible}Recorded susceptible to {list:susceptible}, most often
-      {top:susceptible}.{else}No disease recorded against it.{endif}
+      Mainly {top:grown on soil} soil{if:irrigated by} under {top:irrigated by}{endif}.
+      {if:sub variety of|reverse}Tracked as {list:sub variety of|reverse}.{endif}
+      {if:plan for variety|reverse}Run on {top:plan for variety|reverse}.{else}No crop plan attached to
+      it.{endif}
+      {if:susceptible}Recorded susceptible to {list:susceptible}.{else}No disease recorded against
+      it.{endif}
+      {if:susceptible|many}Most often {top:susceptible}, on {top_weight:susceptible} plots.{endif}
 
   - concept: sub_variety
     template: >

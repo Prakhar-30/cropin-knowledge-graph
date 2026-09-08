@@ -1,0 +1,4 @@
+tenant_id,key,name,code,category,unit,price_unit,calibration
+acme,potato,Potato,CRP-POT,Tuber,t/ha,50 kg bag,"Calibrated, 2 seasons"
+acme,wheat,Wheat,CRP-WHT,Cereal,t/ha,Quintal,"Base model, 1 season"
+globex,rice,Rice,CRP-RCE,Cereal,t/ha,Quintal,"Base model, 1 season"

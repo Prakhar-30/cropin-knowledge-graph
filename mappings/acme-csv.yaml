@@ -1,0 +1,110 @@
+# The file a new tenant edits. Nothing in src/ knows a table or column name; it all lives here.
+#
+# This one points at the CSV fixture tenant. `mappings/default.yaml` is the same shape against Supabase.
+#
+# Rules the loader enforces:
+#   - one read per record type, per link type and per metric, so N+1 cannot be expressed
+#   - every read is tenant scoped unless it explicitly opts out
+#   - reads only: anything that looks like DDL or DML is rejected before a connection opens
+#   - a missing table is a reported gap, not a crash
+version: 1
+tenant_id: acme
+source: csv
+directory: ../tests/fixtures/acme
+snapshot: '2026-09-01'
+
+# Aggregation belongs in the database, as a view. These stand in for those views.
+metrics:
+  - name: variety_plot_count
+    from: agg_variety_plot_count
+    key: variety_key
+    value: plots
+  # Deliberately absent from the fixture: proves the pipeline degrades rather than fails when a
+  # tenant has masters but no operational history behind them.
+  - name: variety_grower_count
+    from: agg_variety_grower_count
+    key: variety_key
+    value: growers
+
+records:
+  - concept: crop
+    from: crop_master
+    id: 'crop:{key}'
+    label: '{name}'
+    attrs:
+      - { key: Crop code, value: '{code}' }
+      - { key: Category, value: '{category}' }
+      - { key: Default yield unit, value: '{unit}' }
+      - { key: Price unit quantity, value: '{price_unit}' }
+      - { key: Calibration state, value: '{calibration}' }
+
+  - concept: variety
+    from: variety_master
+    id: 'variety:{key}'
+    label: '{name}'
+    attrs:
+      - { key: Variety code, value: '{code}' }
+      - { key: Seed source, value: '{seed_source}' }
+      - { key: Maturity class, value: '{maturity}' }
+      - { key: Calibration state, value: '{calibration}' }
+      - { key: Seasons of history, value: '{seasons_of_history}' }
+    usage:
+      plots: { from: metric, name: variety_plot_count, key: key }
+      growers: { from: metric, name: variety_grower_count, key: key }
+      projects: { from: column, name: project_count }
+      expected: { from: column, name: expected_yield }
+      achieved: { from: column, name: achieved_yield }
+
+  - concept: region
+    from: places_master
+    id: 'region:{key}'
+    label: '{name}'
+    attrs:
+      - { key: Type, value: '{type}' }
+      - { key: Administrative level, value: '{level}' }
+      - { key: Agro climatic zone, value: '{zone}' }
+      - { key: Districts covered, value: '{districts}' }
+
+  - concept: season
+    from: season_master
+    id: 'season:{key}'
+    label: '{name}'
+    attrs:
+      - { key: Months, value: '{months}' }
+      - { key: Window, value: '{window}' }
+      - { key: Type, value: '{type}' }
+
+  - concept: soil_type
+    from: soil_type_master
+    id: 'soil_type:{key}'
+    label: '{name}'
+    attrs:
+      - { key: Texture, value: '{texture}' }
+      - { key: Water holding capacity, value: '{whc}' }
+      - { key: pH range, value: '{ph}' }
+      - { key: Notes, value: '{notes}' }
+
+links:
+  - rel: variety of
+    from_table: variety_master
+    from: 'variety:{key}'
+    to: 'crop:{crop_key}'
+    weight: { from: metric, name: variety_plot_count, key: key }
+
+  - rel: grown in region
+    from_table: agg_variety_region
+    from: 'variety:{variety_key}'
+    to: 'region:{region_key}'
+    weight: { from: column, name: plots }
+
+  - rel: grown in season
+    from_table: agg_variety_season
+    from: 'variety:{variety_key}'
+    to: 'season:{season_key}'
+    weight: { from: column, name: plots }
+
+  - rel: grown on soil
+    from_table: agg_variety_soil
+    from: 'variety:{variety_key}'
+    to: 'soil_type:{soil_key}'
+    weight: { from: column, name: plots }

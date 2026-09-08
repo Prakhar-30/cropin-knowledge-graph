@@ -1,0 +1,3 @@
+tenant_id,key,name,type,level,zone,districts
+acme,gujarat,Gujarat,Production belt,State,Semi-arid western plain,"Banaskantha, Patan"
+acme,punjab,Punjab,Production belt,State,Trans-Gangetic plain,"Ludhiana, Patiala"

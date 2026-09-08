@@ -62,6 +62,7 @@ concepts:
       one region and longer in another, so a single national stage set fires activities early in one place and
       late in another. Check the stage observations before trusting a duration.
     attr_order: [Crop, Stage order, Configured duration, Cumulative days from sowing, Growing degree days, Critical stage]
+    label_scope: Crop
     primary_metrics: []
 
   - key: crop_parameters
@@ -121,6 +122,7 @@ concepts:
       the contract on dry matter or size, and the two failures often share a cause but need different
       remedies. Put the numeric specification in the grade so the field team can see what it is held to.
     attr_order: [Crop, Specification, Acceptance threshold, Contract type]
+    label_scope: Crop
     primary_metrics: []
 
   - key: region
@@ -275,6 +277,7 @@ concepts:
       criticality by stage is what turns a probability into a spray decision. Record whether the variety
       resists it - a resistant variety under a high probability warning does not need the same response.
     attr_order: [Type, Crop, Favourable conditions, Symptoms, Mitigation, DEWS model]
+    label_scope: Crop
     primary_metrics: []
 
   - key: alert_type
@@ -302,6 +305,7 @@ concepts:
       than configured in a region, every activity anchored to that boundary is firing at the wrong time, and
       the fix is a regional override rather than a nudge to the field team.
     attr_order: [Crop, Stage, Region, Season, Configured duration, Observed duration, Deviation, Plots behind it]
+    label_scope: Crop
     primary_metrics: [plots, configured_days, observed_days]
 
   - key: season_weather_outcome

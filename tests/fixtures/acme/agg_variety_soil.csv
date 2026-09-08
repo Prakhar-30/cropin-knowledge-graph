@@ -1,0 +1,5 @@
+tenant_id,variety_key,soil_key,plots
+acme,kufri_pukhraj,alluvial,70
+acme,kufri_pukhraj,sandy_loam,30
+acme,kufri_jyoti,alluvial,50
+acme,hd_2967,sandy_loam,30

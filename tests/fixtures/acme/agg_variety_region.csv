@@ -1,0 +1,5 @@
+tenant_id,variety_key,region_key,plots
+acme,kufri_pukhraj,gujarat,60
+acme,kufri_pukhraj,punjab,40
+acme,kufri_jyoti,gujarat,50
+acme,hd_2967,punjab,30

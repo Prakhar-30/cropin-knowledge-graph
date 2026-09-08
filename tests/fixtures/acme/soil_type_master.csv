@@ -1,0 +1,3 @@
+tenant_id,key,name,texture,whc,ph,notes
+acme,alluvial,Alluvial,Sandy loam to silty loam,140 mm/m,6.5 to 7.8,Default across the plain
+acme,sandy_loam,Sandy Loam,Sandy loam,90 mm/m,6.8 to 7.5,Easy digging

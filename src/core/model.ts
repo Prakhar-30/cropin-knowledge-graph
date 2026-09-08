@@ -29,6 +29,12 @@ export const ConceptSchema = z.object({
   decide: z.string().min(1),
   attr_order: z.array(z.string()).default([]),
   primary_metrics: z.array(z.string()).default([]),
+  /**
+   * Attribute whose value scopes label uniqueness. Growth stages, grades and diseases are crop-scoped
+   * vocabularies: two crops may both have a stage called Harvest, and that is correct rather than a
+   * collision. Absent means labels must be unique across the whole concept.
+   */
+  label_scope: z.string().optional(),
 });
 export type Concept = z.infer<typeof ConceptSchema>;
 
@@ -68,7 +74,7 @@ export const DerivationsSchema = z.object({
         metric: z.string(),
         via_relation: z.string(),
         direction: z.enum(['outgoing', 'incoming']).default('outgoing'),
-        only_when_present: z.boolean().default(false),
+        only_when_present: z.boolean().default(true),
       }),
     )
     .default([]),
@@ -164,6 +170,7 @@ export const EmittedConceptSchema = z.object({
   definition: z.string(),
   decide: z.string(),
   source: z.string(),
+  label_scope: z.string().optional(),
   records: z.number().int().nonnegative(),
 });
 

@@ -56,7 +56,7 @@ export interface Ontology {
 /** Relation keys referenced by a summary template, with any |reverse modifier stripped. */
 export function relationsInTemplate(template: string): string[] {
   const out: string[] = [];
-  const re = /\{(?:top|top_weight|list|count|if):([^}|]+)(\|reverse)?\}/g;
+  const re = /\{(?:top|top_weight|list|count|if):([^}|]+)(?:\|[a-z]+)*\}/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(template)) !== null) out.push(m[1].trim());
   return out;
@@ -85,6 +85,9 @@ function validate(o: Omit<Ontology, 'layerByKey' | 'conceptByKey' | 'conceptById
     for (const a of c.attr_order) {
       if (seen.has(a)) problems.push(`concept "${c.key}" repeats attribute "${a}" in attr_order`);
       seen.add(a);
+    }
+    if (c.label_scope && !c.attr_order.includes(c.label_scope)) {
+      problems.push(`concept "${c.key}" scopes labels by "${c.label_scope}", which is not one of its attributes`);
     }
   }
 
