@@ -348,5 +348,12 @@ Three concepts in the `observed` layer - Stage Observation, Season Weather and O
 are aggregations the platform can compute but does not expose as configuration objects today. That is
 the real integration risk, and `ontology/nomenclature.md` says so rather than burying it.
 
-See `docs/ARCHITECTURE.md` for the pipeline in detail and `docs/DECISIONS.md` for the questions this
-build settled and why.
+## Where to read next
+
+| Document | What it is for |
+|---|---|
+| **[docs/HOW-IT-WORKS.md](docs/HOW-IT-WORKS.md)** | **The whole project as a story**, from a database shaped like Cropin through to what a user does with the result. Worked examples with real numbers, nine diagrams, and the questions people ask. Read this to be able to explain the project. |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | The five stages in detail, the document contract, and every deviation from the build brief with the reason |
+| [docs/DECISIONS.md](docs/DECISIONS.md) | The eight questions the findings document left open, and what each one is now |
+| [docs/DOMAIN.md](docs/DOMAIN.md) | Cropin Cloud itself, and which parts this graph models |
+| [ontology/nomenclature.md](ontology/nomenclature.md) | Every term traced to the platform walkthrough, with the divergences named |
