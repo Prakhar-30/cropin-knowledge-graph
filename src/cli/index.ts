@@ -17,6 +17,10 @@ import { buildAdjacency, shortestPath } from '../core/traverse.js';
 import { validate } from '../core/validate.js';
 import { build } from '../core/build.js';
 import { resolveSource } from '../sources/registry.js';
+import { createSupabase } from '../sources/supabase.js';
+import { listTenants, pullDocument, pushDocument } from '../store/graph-store.js';
+import { buildMasterRows } from '../store/masters.js';
+import { graphSeedSql, masterSeedSql } from '../store/sql.js';
 import { bad, dim, line, ok, reportDerive, reportGraph, reportOntology, reportSource, reportValidation, warn } from './report.js';
 
 const program = new Command();
@@ -261,6 +265,93 @@ program
       reweighted.map((k) => `${k}  ${linkA.get(k)!.plots ?? '-'} -> ${linkB.get(k)!.plots ?? '-'}`),
     );
     process.stdout.write('\n');
+  });
+
+/* ---------------------------------------------------------------------- sql */
+
+program
+  .command('sql')
+  .description('emit SQL: seed the platform masters, or push a built graph, without needing a write key')
+  .requiredOption('--what <kind>', 'masters or graph')
+  .option('-t, --tenant <id>', 'tenant id', 'demo')
+  .option('-f, --file <graph.json>', 'the document to push, for --what graph', 'dist/demo/graph.json')
+  .option('-o, --out <file>', 'output path')
+  .action(async (o) => {
+    if (o.what === 'masters') {
+      const sql = masterSeedSql(o.tenant);
+      const out = o.out ?? `supabase/seed_masters_${o.tenant}.sql`;
+      const size = writeOut(out, sql);
+      const tables = buildMasterRows(o.tenant);
+      line('masters', `${tables.length} tables, ${tables.reduce((a, t) => a + t.rows.length, 0)} rows`, ok('ok'));
+      line('emit', `${out} (${kb(size)})`, '');
+      process.stdout.write(`\n  ${dim('Run supabase/schema.sql first, then paste this into the SQL editor.')}\n\n`);
+      return;
+    }
+    if (o.what === 'graph') {
+      const doc = loadDocument(o.file);
+      const out = o.out ?? `dist/${doc.meta.tenant_id}/graph.sql`;
+      const size = writeOut(out, graphSeedSql(doc));
+      line('graph', `${doc.meta.counts.records} records, ${doc.meta.counts.links} links`, ok('ok'));
+      line('emit', `${out} (${kb(size)})`, '');
+      return;
+    }
+    process.stderr.write(`${bad('--what must be masters or graph')}\n`);
+    process.exitCode = 1;
+  });
+
+/* ------------------------------------------------------------- push and pull */
+
+function storeClient(needsWrite: boolean) {
+  const url = process.env.VITE_SUPABASE_URL;
+  const write = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const read = process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+  const key = needsWrite ? write : (read ?? write);
+  if (!url || !key) {
+    throw new Error(
+      needsWrite
+        ? 'a push needs VITE_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY. Without a write key, use: cropin-graph sql --what graph'
+        : 'set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY (see .env.example)',
+    );
+  }
+  return createSupabase({ url, key });
+}
+
+program
+  .command('push')
+  .description('push a built document into the graph store (needs a write key)')
+  .option('-f, --file <graph.json>', 'the document to push', 'dist/demo/graph.json')
+  .action(async (o) => {
+    const doc = loadDocument(o.file);
+    const report = await pushDocument(storeClient(true), doc);
+    line('push', `${doc.meta.tenant_id}: ${report.records} records, ${report.links} links`, ok('ok'));
+  });
+
+program
+  .command('pull')
+  .description('read a stored document back out of the graph store')
+  .option('-t, --tenant <id>', 'tenant id', 'demo')
+  .option('-o, --out <file>', 'output path', 'dist/pulled/graph.json')
+  .option('--pretty', 'indent the JSON', false)
+  .action(async (o) => {
+    const doc = await pullDocument(storeClient(false), o.tenant);
+    const size = writeOut(o.out, serialise(doc, o.pretty));
+    line('pull', `${doc.meta.tenant_id}, built ${doc.meta.built_at}`, `${doc.meta.counts.records} records`);
+    line('emit', `${o.out} (${kb(size)})`, '');
+  });
+
+program
+  .command('tenants')
+  .description('list the tenants with a graph in the store')
+  .action(async () => {
+    const rows = await listTenants(storeClient(false));
+    if (rows.length === 0) {
+      process.stdout.write(`  ${dim('no graph has been pushed yet')}\n`);
+      return;
+    }
+    for (const r of rows) {
+      const counts = r.counts as { records?: number; links?: number } | null;
+      line(r.tenant_id, `built ${r.built_at}`, `${counts?.records ?? '?'} records, ${counts?.links ?? '?'} links`);
+    }
   });
 
 /* -------------------------------------------------------------- ontology info */

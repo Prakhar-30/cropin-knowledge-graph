@@ -19,12 +19,34 @@ export interface ApplyResult {
   problems: string[];
 }
 
-/** `{col}`, `{slug:col}`. Anything else is left alone so a literal brace is still possible. */
+/**
+ * Formatters available inside a mapping template.
+ *
+ * `attrs` values are display-ready strings, so the presentation decision belongs here rather than in
+ * SQL: a view should not have to know that this tenant reads numbers in Indian grouping. Aggregation
+ * stays in the database, formatting stays in the mapping.
+ */
+const FORMATTERS: Record<string, (raw: string | number | boolean) => string> = {
+  slug: (raw) => slug(String(raw)),
+  /** Thousands separators, Indian grouping. */
+  num: (raw) => Number(raw).toLocaleString('en-IN'),
+  /** One decimal place, always shown. */
+  one: (raw) => Number(raw).toFixed(1),
+  /** Signed, one decimal place - for a deviation or a gap. */
+  signed: (raw) => `${Number(raw) > 0 ? '+' : ''}${Number(raw).toFixed(1)}`,
+  yesno: (raw) => (raw === true || raw === 'true' || raw === 1 ? 'Yes' : 'No'),
+  upper: (raw) => String(raw).toUpperCase(),
+};
+
+/** `{col}`, or `{fn:col}` for any formatter above. An unresolved slot is left alone and reported. */
 export function interpolate(template: string, row: Row): string {
-  return template.replace(/\{(slug:)?([a-zA-Z0-9_]+)\}/g, (whole, fn: string | undefined, col: string) => {
+  return template.replace(/\{([a-z]+:)?([a-zA-Z0-9_]+)\}/g, (whole, fn: string | undefined, col: string) => {
     const raw = row[col];
     if (raw === null || raw === undefined) return whole;
-    return fn ? slug(String(raw)) : String(raw);
+    if (!fn) return String(raw);
+    const formatter = FORMATTERS[fn.slice(0, -1)];
+    if (!formatter) throw new Error(`unknown formatter "${fn.slice(0, -1)}" in template "${template}"`);
+    return formatter(raw);
   });
 }
 

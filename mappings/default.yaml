@@ -1,0 +1,550 @@
+# Supabase mapping. The file a new tenant edits.
+#
+# Nothing in src/ knows a table or column name. Every entry below is one read: one per record type, one
+# per link type, one per metric. Aggregation lives in the views defined in supabase/schema.sql, because a
+# relational engine does that work far better than this process would; numeric formatting lives here,
+# because the display contract is a mapping concern.
+#
+# Credentials are never in this file - only the names of the environment variables to read them from.
+version: 1
+tenant_id: demo
+source: supabase
+url_env: VITE_SUPABASE_URL
+key_env: VITE_SUPABASE_PUBLISHABLE_KEY
+snapshot: '2026-09-07'
+
+metrics:
+  - name: variety_plots
+    from: agg_variety_plot_count
+    key: variety_key
+    value: plots
+
+records:
+  # ------------------------------------------------------------- crop hierarchy
+  - concept: crop
+    from: crop_master
+    id: 'crop:{key}'
+    label: '{name}'
+    note: '{note}'
+    attrs:
+      - { key: Crop code, value: '{code}' }
+      - { key: Category, value: '{category}' }
+      - { key: Default yield unit, value: '{unit}' }
+      - { key: Price unit quantity, value: '{price_unit}' }
+      - { key: Calibration state, value: '{calibration}' }
+
+  - concept: variety
+    from: v_variety_display
+    id: 'variety:{key}'
+    label: '{name}'
+    note: '{note}'
+    attrs:
+      - { key: Variety code, value: '{code}' }
+      - { key: Seed source, value: '{seed_source}' }
+      - { key: Maturity class, value: '{maturity}' }
+      - { key: Calibration state, value: '{calibration}' }
+      - { key: Seasons of history, value: '{seasons_of_history}' }
+    usage:
+      plots: { from: column, name: plots }
+      growers: { from: column, name: growers }
+      projects: { from: column, name: projects }
+      expected: { from: column, name: expected }
+      achieved: { from: column, name: achieved }
+
+  - concept: sub_variety
+    from: v_sub_variety_display
+    id: 'sub_variety:{key}'
+    label: '{name}'
+    note: '{note}'
+    attrs:
+      - { key: Sub variety code, value: '{code}' }
+      - { key: Purpose, value: '{purpose}' }
+      - { key: Grade expectation, value: '{grade_expectation}' }
+      - { key: Lot handling, value: '{lot_handling}' }
+    usage:
+      plots: { from: column, name: plots }
+      growers: { from: column, name: growers }
+
+  # --------------------------------------------------------- crop configuration
+  - concept: growth_stage
+    from: v_growth_stage_display
+    id: 'growth_stage:{key}'
+    label: '{name}'
+    note: '{note}'
+    attrs:
+      - { key: Crop, value: '{crop_name}' }
+      - { key: Stage order, value: '{stage_order}' }
+      - { key: Configured duration, value: '{days} days' }
+      - { key: Cumulative days from sowing, value: '{cumulative} days' }
+      - { key: Growing degree days, value: '{num:gdd} GDD' }
+      - { key: Critical stage, value: '{yesno:critical}' }
+
+  - concept: crop_parameters
+    from: v_crop_parameters_display
+    id: 'crop_parameters:{variety_key}'
+    label: '{variety_name} parameters'
+    attrs:
+      - { key: Expected yield, value: '{one:expected_yield} t/ha' }
+      - { key: Maximum attainable yield, value: '{one:max_attainable} t/ha' }
+      - { key: Harvest duration, value: '{harvest_duration} days' }
+      - { key: Estimated days to harvest, value: '{est_days_to_harvest} days' }
+      - { key: Base temperature, value: '{one:base_temp} C' }
+      - { key: Standard deduction, value: '{one:deduction} percent' }
+      - { key: Price unit quantity, value: '{price_unit}' }
+
+  - concept: sowing_window
+    from: v_sowing_window_display
+    id: 'sowing_window:{key}'
+    label: '{crop_name} in {region_name}, {season_name}'
+    attrs:
+      - { key: Crop, value: '{crop_name}' }
+      - { key: Region, value: '{region_name}' }
+      - { key: Season, value: '{season_name}' }
+      - { key: Ideal window, value: '{ideal_window}' }
+      - { key: Outer window, value: '{outer_window}' }
+      - { key: Cost of breach, value: '{cost_of_breach}' }
+    usage:
+      plots: { from: column, name: plots }
+
+  - concept: seed_grade
+    from: seed_grades
+    id: 'seed_grade:{key}'
+    label: '{name}'
+    attrs:
+      - { key: Class, value: '{class}' }
+      - { key: Genetic purity, value: '{purity}' }
+      - { key: Certification, value: '{certification}' }
+      - { key: Used at, value: '{used_at}' }
+
+  - concept: harvest_grade
+    from: v_harvest_grade_display
+    id: 'harvest_grade:{key}'
+    label: '{name}'
+    note: '{note}'
+    attrs:
+      - { key: Crop, value: '{crop_name}' }
+      - { key: Specification, value: '{spec}' }
+      - { key: Acceptance threshold, value: '{threshold}' }
+      - { key: Contract type, value: '{contract}' }
+
+  # ------------------------------------------------- where and when it is grown
+  - concept: region
+    from: places_master
+    id: 'region:{key}'
+    label: '{name}'
+    note: '{note}'
+    attrs:
+      - { key: Type, value: '{type}' }
+      - { key: Administrative level, value: '{level}' }
+      - { key: Agro climatic zone, value: '{zone}' }
+      - { key: Districts covered, value: '{districts}' }
+
+  - concept: season
+    from: season_master
+    id: 'season:{key}'
+    label: '{name}'
+    note: '{note}'
+    attrs:
+      - { key: Months, value: '{months}' }
+      - { key: Window, value: '{calendar_window}' }
+      - { key: Type, value: '{type}' }
+
+  - concept: soil_type
+    from: soil_type_master
+    id: 'soil_type:{key}'
+    label: '{name}'
+    attrs:
+      - { key: Texture, value: '{texture}' }
+      - { key: Water holding capacity, value: '{whc}' }
+      - { key: pH range, value: '{ph}' }
+      - { key: Notes, value: '{notes}' }
+
+  - concept: irrigation_type
+    from: irrigation_type_master
+    id: 'irrigation_type:{key}'
+    label: '{name}'
+    attrs:
+      - { key: Method, value: '{method}' }
+      - { key: Application efficiency, value: '{efficiency}' }
+      - { key: Effective capacity per day, value: '{capacity}' }
+      - { key: Suited to, value: '{suited}' }
+
+  # ---------------------------------------------------- plan and field activity
+  - concept: plan_type
+    from: v_plan_type_display
+    id: 'plan_type:{key}'
+    label: '{name}'
+    note: '{note}'
+    attrs:
+      - { key: Crop, value: '{crop_name}' }
+      - { key: Sections, value: '{sections}' }
+      - { key: Attribute kinds, value: '{attr_kinds}' }
+      - { key: Status, value: '{status}' }
+
+  - concept: crop_plan
+    from: v_crop_plan_display
+    id: 'crop_plan:{key}'
+    label: '{name}'
+    note: '{note}'
+    attrs:
+      - { key: Plan type, value: '{plan_type_name}' }
+      - { key: Variety, value: '{variety_name}' }
+      - { key: Season, value: '{season_name}' }
+      - { key: Activities, value: '{activity_count} activities' }
+      - { key: Status, value: '{status}' }
+      - { key: Cost per acre, value: 'INR {num:cost_per_acre}' }
+    usage:
+      plots: { from: column, name: plots }
+      projects: { from: column, name: projects }
+
+  - concept: plan_activity
+    from: plan_activity
+    id: 'plan_activity:{key}'
+    label: '{name}'
+    note: '{note}'
+    attrs:
+      - { key: Activity type, value: '{type}' }
+      - { key: Scheduling, value: '{scheduling}' }
+      - { key: Offset rule, value: '{offset_rule}' }
+      - { key: Duration, value: '{duration}' }
+      - { key: Approval, value: '{approval}' }
+
+  - concept: plan_attribute
+    from: plan_attributes
+    id: 'plan_attribute:{key}'
+    label: '{name}'
+    attrs:
+      - { key: Kind, value: '{kind}' }
+      - { key: Data type, value: '{data_type}' }
+      - { key: Unit, value: '{unit}' }
+      - { key: Required, value: '{required}' }
+
+  - concept: resource_or_input
+    from: resource_master
+    id: 'resource_or_input:{key}'
+    label: '{name}'
+    attrs:
+      - { key: Category, value: '{category}' }
+      - { key: Unit, value: '{unit}' }
+      - { key: Indicative cost, value: '{cost}' }
+      - { key: Owner, value: '{owner}' }
+
+  - concept: form
+    from: form_master
+    id: 'form:{key}'
+    label: '{name}'
+    note: '{note}'
+    attrs:
+      - { key: Form type, value: '{type}' }
+      - { key: Version, value: '{version}' }
+      - { key: Fields, value: '{fields}' }
+      - { key: Consent, value: '{consent}' }
+
+  # ------------------------------------------------------ disease, pest, alerts
+  - concept: disease_or_pest
+    from: v_disease_display
+    id: 'disease_or_pest:{key}'
+    label: '{name}'
+    note: '{note}'
+    attrs:
+      - { key: Type, value: '{category}' }
+      - { key: Crop, value: '{crop_name}' }
+      - { key: Favourable conditions, value: '{conditions}' }
+      - { key: Symptoms, value: '{symptoms}' }
+      - { key: Mitigation, value: '{mitigation}' }
+      - { key: DEWS model, value: '{dews_model}' }
+
+  - concept: alert_type
+    from: v_alert_display
+    id: 'alert_type:{key}'
+    label: '{name}'
+    note: '{note}'
+    attrs:
+      - { key: Class, value: '{category}' }
+      - { key: Trigger, value: '{conditions}' }
+      - { key: Advisory, value: '{advisory}' }
+      - { key: Mean area impacted, value: '{one:area_pct} percent' }
+    usage:
+      area_pct: { from: column, name: area_pct }
+
+  # -------------------------------------------------------- what actually happened
+  - concept: stage_observation
+    from: v_stage_observation_display
+    id: 'stage_observation:{key}'
+    label: '{stage_name} in {region_name}'
+    note: '{note}'
+    attrs:
+      - { key: Crop, value: '{crop_name}' }
+      - { key: Stage, value: '{stage_name}' }
+      - { key: Region, value: '{region_name}' }
+      - { key: Season, value: '{season_name}' }
+      - { key: Configured duration, value: '{configured_days} days' }
+      - { key: Observed duration, value: '{observed_days} days' }
+      - { key: Deviation, value: '{signed:deviation_pct} percent' }
+      - { key: Plots behind it, value: '{num:plots} plots' }
+    usage:
+      plots: { from: column, name: plots }
+      configured_days: { from: column, name: configured_days }
+      observed_days: { from: column, name: observed_days }
+
+  - concept: season_weather_outcome
+    from: v_season_outcome_display
+    id: 'season_weather_outcome:{key}'
+    label: '{name}'
+    note: '{note}'
+    attrs:
+      - { key: Crop, value: '{crop_name}' }
+      - { key: Variety, value: '{variety_name}' }
+      - { key: Region, value: '{region_name}' }
+      - { key: Season, value: '{season_name}' }
+      - { key: Rainfall, value: '{rainfall}' }
+      - { key: Mean Tmax, value: '{mean_tmax}' }
+      - { key: Heat events, value: '{heat_events}' }
+      - { key: Expected yield, value: '{one:expected} {crop_unit}' }
+      - { key: Achieved yield, value: '{one:achieved} {crop_unit}' }
+      - { key: Gap, value: '{signed:gap_pct} percent' }
+      - { key: Grade outcome, value: '{grade_outcome}' }
+    usage:
+      plots: { from: column, name: plots }
+      expected: { from: column, name: expected }
+      achieved: { from: column, name: achieved }
+
+  - concept: dews_history
+    from: v_dews_history_display
+    id: 'dews_history:{key}'
+    label: '{name}'
+    note: '{note}'
+    attrs:
+      - { key: Disease, value: '{disease_name}' }
+      - { key: Region, value: '{region_name}' }
+      - { key: Season, value: '{season_name}' }
+      - { key: Warnings fired, value: '{warnings}' }
+      - { key: Critical warnings, value: '{critical}' }
+      - { key: Followed by disease, value: '{followed}' }
+      - { key: Hit rate, value: '{one:hit_rate} percent' }
+      - { key: Mean lead time, value: '{one:lead_days} days' }
+      - { key: Critical threshold, value: '{threshold} percent probability' }
+    usage:
+      warnings: { from: column, name: warnings }
+      hit_rate: { from: column, name: hit_rate }
+      lead_days: { from: column, name: lead_days }
+
+links:
+  # ------------------------------------------------------------- crop hierarchy
+  - rel: variety of
+    from_table: variety_master
+    from: 'variety:{key}'
+    to: 'crop:{crop_key}'
+    weight: { from: metric, name: variety_plots, key: key }
+
+  - rel: sub variety of
+    from_table: v_sub_variety_display
+    from: 'sub_variety:{key}'
+    to: 'variety:{variety_key}'
+    weight: { from: column, name: plots }
+
+  # --------------------------------------------------------- crop configuration
+  - rel: has parameters
+    from_table: variety_master
+    from: 'variety:{key}'
+    to: 'crop_parameters:{key}'
+    weight: { from: metric, name: variety_plots, key: key }
+
+  - rel: has growth stage
+    from_table: v_crop_stage_plots
+    from: 'crop:{crop_key}'
+    to: 'growth_stage:{stage_key}'
+    weight: { from: column, name: plots }
+
+  - rel: sowing window for
+    from_table: crop_target_dates
+    from: 'sowing_window:{key}'
+    to: 'crop:{crop_key}'
+
+  - rel: window in region
+    from_table: crop_target_dates
+    from: 'sowing_window:{key}'
+    to: 'region:{region_key}'
+
+  - rel: window in season
+    from_table: crop_target_dates
+    from: 'sowing_window:{key}'
+    to: 'season:{season_key}'
+
+  # Crop level: the grade is available for the crop. Unweighted, because availability is not usage and a
+  # weight here would be counted a second time through the variety below it.
+  - rel: graded by
+    from_table: crop_grade
+    from: 'crop:{crop_key}'
+    to: 'harvest_grade:{grade_key}'
+    note: Available for the crop
+
+  # Variety and sub variety level: actual usage. A variety delegates to its sub varieties where they
+  # exist, so no plot appears at two levels of the hierarchy.
+  - rel: graded by
+    from_table: v_grade_usage
+    from: '{owner_kind}:{owner_key}'
+    to: '{grade_kind}:{grade_key}'
+    weight: { from: column, name: plots }
+
+  # ------------------------------------------------- where and when it is grown
+  - rel: grown in region
+    from_table: agg_variety_region
+    from: 'variety:{variety_key}'
+    to: 'region:{region_key}'
+    weight: { from: column, name: plots }
+
+  - rel: grown in season
+    from_table: agg_variety_season
+    from: 'variety:{variety_key}'
+    to: 'season:{season_key}'
+    weight: { from: column, name: plots }
+
+  - rel: grown on soil
+    from_table: agg_variety_soil
+    from: 'variety:{variety_key}'
+    to: 'soil_type:{soil_key}'
+    weight: { from: column, name: plots }
+
+  - rel: irrigated by
+    from_table: agg_variety_irrigation
+    from: 'variety:{variety_key}'
+    to: 'irrigation_type:{irrigation_key}'
+    weight: { from: column, name: plots }
+
+  # ---------------------------------------------------- plan and field activity
+  - rel: plan type for
+    from_table: plan_type_master
+    from: 'plan_type:{key}'
+    to: 'crop:{crop_key}'
+
+  - rel: built from
+    from_table: v_crop_plan_display
+    from: 'crop_plan:{key}'
+    to: 'plan_type:{plan_type_key}'
+    weight: { from: column, name: plots }
+
+  - rel: plan for variety
+    from_table: v_crop_plan_display
+    from: 'crop_plan:{key}'
+    to: 'variety:{variety_key}'
+    weight: { from: column, name: plots }
+
+  - rel: plan for season
+    from_table: v_crop_plan_display
+    from: 'crop_plan:{key}'
+    to: 'season:{season_key}'
+    weight: { from: column, name: plots }
+
+  - rel: includes activity
+    from_table: v_crop_plan_activity_weighted
+    from: 'crop_plan:{crop_plan_key}'
+    to: 'plan_activity:{activity_key}'
+    weight: { from: column, name: plots }
+
+  - rel: scheduled at
+    from_table: v_activity_stage_weighted
+    from: 'plan_activity:{activity_key}'
+    to: 'growth_stage:{stage_key}'
+    weight: { from: column, name: plots }
+
+  - rel: requires resource
+    from_table: v_activity_resource_weighted
+    from: 'plan_activity:{activity_key}'
+    to: 'resource_or_input:{resource_key}'
+    weight: { from: column, name: plots }
+
+  - rel: captures
+    from_table: v_activity_attribute_weighted
+    from: 'plan_activity:{activity_key}'
+    to: 'plan_attribute:{attribute_key}'
+    weight: { from: column, name: plots }
+
+  - rel: recorded on form
+    from_table: v_activity_form_weighted
+    from: 'plan_activity:{activity_key}'
+    to: 'form:{form_key}'
+    weight: { from: column, name: plots }
+
+  # ------------------------------------------------------ disease, pest, alerts
+  - rel: prone to
+    from_table: v_crop_disease_plots
+    from: 'crop:{crop_key}'
+    to: 'disease_or_pest:{disease_key}'
+    weight: { from: column, name: plots }
+
+  - rel: susceptible
+    from_table: v_variety_disease_plots
+    from: 'variety:{variety_key}'
+    to: 'disease_or_pest:{disease_key}'
+    weight: { from: column, name: plots }
+    note: Recorded on {incidence_pct} percent of this variety's plots
+
+  - rel: critical at
+    from_table: v_disease_stage_weighted
+    from: 'disease_or_pest:{disease_key}'
+    to: 'growth_stage:{stage_key}'
+    weight: { from: column, name: plots }
+
+  - rel: mitigated by
+    from_table: v_risk_mitigation_display
+    from: '{risk_prefix}:{risk_key}'
+    to: 'plan_activity:{activity_key}'
+    weight: { from: column, name: plots }
+
+  - rel: alert observed
+    from_table: crop_alert
+    from: 'crop:{crop_key}'
+    to: 'alert_type:{alert_key}'
+    weight: { from: column, name: plots }
+
+  # -------------------------------------------------------- what actually happened
+  - rel: stage observed
+    from_table: agg_stage_observation
+    from: 'stage_observation:{key}'
+    to: 'growth_stage:{stage_key}'
+
+  - rel: observed for crop
+    from_table: agg_stage_observation
+    from: 'stage_observation:{key}'
+    to: 'crop:{crop_key}'
+
+  - rel: observed in region
+    from_table: agg_stage_observation
+    from: 'stage_observation:{key}'
+    to: 'region:{region_key}'
+
+  - rel: observed in region
+    from_table: agg_season_outcome
+    from: 'season_weather_outcome:{key}'
+    to: 'region:{region_key}'
+
+  - rel: observed in region
+    from_table: agg_dews_history
+    from: 'dews_history:{key}'
+    to: 'region:{region_key}'
+
+  - rel: observed in season
+    from_table: agg_season_outcome
+    from: 'season_weather_outcome:{key}'
+    to: 'season:{season_key}'
+
+  - rel: observed in season
+    from_table: agg_dews_history
+    from: 'dews_history:{key}'
+    to: 'season:{season_key}'
+
+  - rel: outcome for
+    from_table: agg_season_outcome
+    from: 'season_weather_outcome:{key}'
+    to: 'variety:{variety_key}'
+
+  - rel: season record for
+    from_table: agg_season_outcome
+    from: 'season_weather_outcome:{key}'
+    to: 'crop:{crop_key}'
+
+  - rel: warnings for
+    from_table: agg_dews_history
+    from: 'dews_history:{key}'
+    to: 'disease_or_pest:{disease_key}'
