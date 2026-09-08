@@ -38,6 +38,7 @@ const SOURCES = [
       'derive',
       'publish',
       'panel-order',
+      'route-how-to',
     ],
   },
 ];

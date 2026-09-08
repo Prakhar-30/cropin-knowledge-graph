@@ -24,6 +24,7 @@ render in any viewer rather than only on github.com. `npm run docs:diagrams` reg
 9. [Proving it: the invariants](#9-proving-it-the-invariants)
 10. [Publishing: four ways to reach the same document](#10-publishing-four-ways-to-reach-the-same-document)
 11. [What a user sees, and what they do with it](#11-what-a-user-sees-and-what-they-do-with-it)
+    - [Using Route: how are these two things connected?](#using-route-how-are-these-two-things-connected)
 12. [The questions people will ask](#12-the-questions-people-will-ask)
 13. [Cheat sheet](#13-cheat-sheet)
 
@@ -707,6 +708,94 @@ thing is and how to choose it. Putting the definition first would make it a glos
 
 Then the loop closes: the next rebuild reads those changes back, and the weights move. **The graph never
 writes to a master. It shows; a person decides.**
+
+### Using Route: "how are these two things connected?"
+
+The other four views start from one node and show what surrounds it. Route starts from **two** nodes and
+shows the chain between them, with the relationship written on every link. It answers the question you
+cannot ask a report, because you would have to already know the answer to write the query.
+
+#### In the viewer
+
+<img src="diagrams/route-how-to.svg" alt="Setting the two ends of a route in the viewer" width="100%">
+
+<details>
+<summary>Mermaid source</summary>
+
+```mermaid
+flowchart LR
+  A["Find the first node<br/>search, or click it on the canvas"] --> B["Panel: click<br/>Route from here"]
+  B --> C["Mode switches to Route<br/>left rail shows: from ✓  to ▢"]
+  C --> D["Find the second node<br/>search the left rail"]
+  D --> E["Panel: click<br/>Route to here"]
+  E --> F["The chain draws,<br/>with a heading on every hop"]
+```
+</details>
+
+Two ways to set the ends:
+
+- **From the panel.** Open any node and click **Route from here**, then find the second and click
+  **Route to here**. This is the reliable way, because search reaches every node.
+- **By clicking the canvas.** While in Route mode, the first click sets `from`, the second sets `to`, and
+  a third starts a new route. Faster when both nodes are already on screen.
+
+The left rail shows both ends with a `×` to clear either one. Until both are set, Route falls back to
+showing the Attached view of whichever end you have picked - so you can keep exploring while choosing the
+second end.
+
+#### On the command line
+
+```bash
+npm run graph -- route dist/demo/graph.json \
+  --from region:gujarat --to form:harvest_and_grading
+```
+
+```
+Gujarat
+  |  Varieties grown here (361 plots)
+Kufri Chipsona-1
+  |  Crop plans attached (1,245 plots)
+Chipsona Processing Rabi
+  |  Activities in this plan (1,245 plots)
+Grading and Sorting
+  |  Form it is recorded on (3,261 plots)
+Harvest and Grading
+
+4 hops
+```
+
+Read it as a sentence: *Gujarat grows Kufri Chipsona-1, which has the Chipsona Processing Rabi plan
+attached, which includes Grading and Sorting, which is recorded on the Harvest and Grading form.* That is
+the mechanism connecting a region to a form - four hops, none of which anyone had to know in advance.
+
+#### Over the API
+
+```bash
+curl "http://localhost:8787/api/route?tenant=demo&from=crop:potato&to=resource_or_input:cold_store_space"
+```
+
+Returns `hops` and a `steps` array, each step carrying `from`, `to`, `rel`, `forward`, `plots` and the
+`heading` already resolved for the direction it was traversed in.
+
+#### Four things about how it behaves
+
+| Behaviour | Why it is that way |
+|---|---|
+| **It traverses undirected** | Navigation is not causation. `Variety → prone to → Disease` is stored one way because that is the direction that reads as a fact, but a user may want to walk it backwards. Directed reachability across this graph is only about 70%; undirected is 100%. |
+| **Headings flip with direction** | The Gujarat route above shows *"Varieties grown here"*, which is the **reverse** heading of `grown in region`. Walk it the other way and the same link reads *"Regions it is grown in"*. That is exactly why every relation ships two headings. |
+| **It is deterministic** | Neighbours are visited in sorted id order, so the same pair always yields the same path. A route is safe to screenshot, cite in a document, or put in a test. |
+| **Concept hops appear as dashed links** | `record of` is how you cross between two records that share no direct link - up to the concept and back down. It is drawn dashed and carries no weight, because membership is not evidence. |
+
+#### Three questions worth routing
+
+| Question | Route | What it tells you |
+|---|---|---|
+| Does this configured risk have a response? | `disease_or_pest:stem_borer_rice` → `plan_activity:pheromone_trap_install` | **1 hop, 633 plots.** The mitigation exists in the ontology - but check the activity's own panel and it is in *no paddy crop plan*. A configured risk with no configured response. |
+| Why is this grade relevant to this variety? | `variety:lady_rosetta` → `harvest_grade:chips_grade_a` | **2 hops.** It is not attached to the variety at all - it reaches it through Potato, because grades are configured at crop level and used at variety level. |
+| How does an input trace back to a crop? | `crop:potato` → `resource_or_input:cold_store_space` | **5 hops**, through an alert, an activity and the plan that includes it. Useful for input-effectiveness questions, which is the whole reason input-led operations digitise. |
+
+> **A route with a short path is often the finding.** If two things you expected to be closely tied turn
+> out to be four hops apart through an unrelated concept, that gap *is* the configuration problem.
 
 ---
 
