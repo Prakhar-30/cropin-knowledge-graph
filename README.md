@@ -27,7 +27,7 @@ npm run build:viewer
 npm run api                 # http://localhost:8787
 
 # 3. Check everything
-npm run check               # typecheck + 77 unit tests
+npm run check               # typecheck + 83 unit tests
 npm run test:viewer         # headless browser smoke test + screenshots
 ```
 
@@ -136,6 +136,9 @@ npm run graph -- push     --file dist/demo/graph.json     # needs a write key
 npm run graph -- pull     --tenant demo
 npm run graph -- tenants
 ```
+
+`validate` does not trust the file: it strips the derived numbers and generated summaries, recomputes
+them from the links, and reports any that disagree with what the document claimed.
 
 `explain` prints one node with its metrics and every section grouped the way the UI groups them - the
 fastest way to check a mapping without opening a browser. `diff` reports records and links added,

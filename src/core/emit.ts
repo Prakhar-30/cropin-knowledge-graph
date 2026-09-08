@@ -9,7 +9,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import type { BuiltGraph } from './build.js';
-import { EVIDENCE_RULE, SCHEMA_VERSION, type GraphDocument } from './model.js';
+import { EVIDENCE_RULE, SCHEMA_VERSION, type GraphDocument, type SourceBundle } from './model.js';
 import { layerMap, ontology, sections } from './ontology.js';
 import type { reachability } from './traverse.js';
 
@@ -106,6 +106,63 @@ export function toDocument(graph: BuiltGraph, { builtAt, reach }: EmitOptions): 
 
 export function serialise(doc: GraphDocument, pretty = false): string {
   return pretty ? `${JSON.stringify(doc, null, 2)}\n` : JSON.stringify(doc);
+}
+
+/** What an emitted document claimed for a derived metric or a generated summary. */
+export interface ClaimedValues {
+  metrics: Map<string, number>;
+  summaries: Map<string, string>;
+}
+
+/**
+ * The inverse of `toDocument`: turns an emitted document back into a source bundle so it can be run
+ * through the pipeline again.
+ *
+ * Derived numbers and generated summaries are *stripped*, not carried over, and returned separately as
+ * what the document claimed. Two reasons:
+ *
+ *   - The build guards against a source supplying a number the ontology derives. Feeding a built
+ *     document straight back in trips that guard on the pipeline's own output, which is what it did
+ *     before this existed.
+ *   - Re-deriving and then comparing is a real re-validation. Trusting the numbers already in the file
+ *     would only check the file against itself.
+ */
+export function fromDocument(doc: GraphDocument): { bundle: SourceBundle; claimed: ClaimedValues } {
+  const claimed: ClaimedValues = { metrics: new Map(), summaries: new Map() };
+
+  const records = doc.records.map((r) => {
+    const conceptKey = ontology.conceptById.get(r.concept)?.key;
+    const usage: Record<string, number> = {};
+    for (const [metric, value] of Object.entries(r.usage)) {
+      if (conceptKey && ontology.derivedMetrics.has(`${conceptKey}.${metric}`)) {
+        claimed.metrics.set(`${r.id}.${metric}`, value);
+      } else {
+        usage[metric] = value;
+      }
+    }
+    if (r.summary) claimed.summaries.set(r.id, r.summary);
+    return {
+      id: r.id,
+      concept: r.concept,
+      label: r.label,
+      attrs: r.attrs,
+      usage,
+      ...(r.note ? { note: r.note } : {}),
+      tenant_id: doc.meta.tenant_id,
+    };
+  });
+
+  return {
+    bundle: {
+      tenant_id: doc.meta.tenant_id,
+      source_snapshot: doc.meta.source_snapshot,
+      source_name: doc.meta.source,
+      records,
+      links: doc.links.map((l) => ({ ...l, tenant_id: doc.meta.tenant_id })),
+      metrics_not_computed: doc.meta.coverage.metrics_not_computed,
+    },
+    claimed,
+  };
 }
 
 /**

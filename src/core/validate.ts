@@ -5,6 +5,7 @@
  * and an id tells you why. `--strict` (the default in CI) turns any failure into a non-zero exit.
  */
 import { conceptOfNode, type BuiltGraph } from './build.js';
+import type { ClaimedValues } from './emit.js';
 import { RECORD_ID_RE, isConceptId } from './ids.js';
 import { ontology } from './ontology.js';
 import { components, reachability } from './traverse.js';
@@ -28,7 +29,10 @@ export const PARITY = { concepts: 23, records: 338, links: 1149 };
 
 const MAX_OFFENDERS = 20;
 
-export function validate(graph: BuiltGraph, opts: { parity?: boolean } = {}): ValidationResult {
+export function validate(
+  graph: BuiltGraph,
+  opts: { parity?: boolean; claimed?: ClaimedValues } = {},
+): ValidationResult {
   const checks: Check[] = [];
   const add = (n: number, name: string, offenders: string[], detail: string) =>
     checks.push({ n, name, ok: offenders.length === 0, detail, offenders: offenders.slice(0, MAX_OFFENDERS) });
@@ -217,6 +221,32 @@ export function validate(graph: BuiltGraph, opts: { parity?: boolean } = {}): Va
     }
   }
   add(15, 'Attributes declared and in display order', attrOrder, 'attrs insertion order is the display order');
+
+  /*
+   * 16 - only when re-validating an emitted document. The derived numbers and generated summaries were
+   * stripped on the way in and recomputed from the links, so this compares what the file claimed against
+   * what its own links actually imply. A file that agrees only with itself has not been validated.
+   */
+  if (opts.claimed) {
+    const drift: string[] = [];
+    for (const [path, was] of opts.claimed.metrics) {
+      const cut = path.lastIndexOf('.');
+      const record = graph.recordById.get(path.slice(0, cut));
+      const now = record?.usage[path.slice(cut + 1)];
+      if (now === undefined) drift.push(`${path}: the document had ${was}, recomputing produced nothing`);
+      else if (now !== was) drift.push(`${path}: the document had ${was}, its links imply ${now}`);
+    }
+    for (const [id, was] of opts.claimed.summaries) {
+      const now = graph.recordById.get(id)?.summary;
+      if (now !== was) drift.push(`${id}: the summary in the document is not the one its links generate`);
+    }
+    add(
+      16,
+      'Document numbers match what its own links imply',
+      drift,
+      `${opts.claimed.metrics.size} derived metrics and ${opts.claimed.summaries.size} summaries recomputed`,
+    );
+  }
 
   return { checks, ok: checks.every((c) => c.ok), reach };
 }

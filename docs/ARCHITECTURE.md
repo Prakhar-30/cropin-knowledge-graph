@@ -108,10 +108,23 @@ need I/O and therefore live in the test suite.
 | 13 | Every relation has both headings and an order |
 | 14 | No tenant leakage |
 | 15 | Attributes declared and in display order |
+| 16 | A re-validated document's numbers match what its own links imply |
 
-Invariant 15 is an addition: `attrs` is an ordered map whose insertion order is the display order, so it
-is worth asserting that the order matches what `concepts.yaml` declares and that no undeclared attribute
-appears.
+Invariants 15 and 16 are additions. 15 asserts that `attrs` - an ordered map whose insertion order is
+the display order - matches what `concepts.yaml` declares and carries no undeclared attribute.
+
+16 only runs when re-validating an already-emitted document, and it is the reason
+`cropin-graph validate graph.json` means anything. The command strips the derived numbers and generated
+summaries out of the file, recomputes them from the links, and compares. Carrying them over instead
+would have checked the file against itself - and, because the build guards against a *source* supplying
+a number the ontology derives, feeding a built document straight back in tripped that guard on the
+pipeline's own output.
+
+The division of labour between 8 and 16 is worth stating, because it is not obvious and there is a test
+that pins it down. Check 8 recomputes every total from the links and compares: it proves internal
+consistency, so after a re-derive it is satisfied even if a link weight was edited, because the total was
+rebuilt from the edited weight. Check 16 compares against what the document claimed, which is the only
+place that edit shows up. Neither check subsumes the other.
 
 ### Three checks that the fixtures changed
 

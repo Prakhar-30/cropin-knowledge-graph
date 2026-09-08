@@ -9,7 +9,8 @@
 import { mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { Command } from 'commander';
-import { inlineHtml, serialise } from '../core/emit.js';
+import { derive } from '../core/derive.js';
+import { fromDocument, inlineHtml, serialise } from '../core/emit.js';
 import { GraphDocumentSchema, type GraphDocument } from '../core/model.js';
 import { ontology } from '../core/ontology.js';
 import { run } from '../core/pipeline.js';
@@ -93,15 +94,15 @@ program
   .option('--parity', 'also assert the prototype counts', false)
   .action((file: string, o) => {
     const doc = loadDocument(file);
-    const graph = build({
-      tenant_id: doc.meta.tenant_id,
-      source_snapshot: doc.meta.source_snapshot,
-      source_name: doc.meta.source,
-      records: doc.records.map((r) => ({ ...r, tenant_id: doc.meta.tenant_id })),
-      links: doc.links.map((l) => ({ ...l, tenant_id: doc.meta.tenant_id })),
-      metrics_not_computed: doc.meta.coverage.metrics_not_computed,
-    });
-    const v = validate(graph, { parity: o.parity });
+    // Strip the derived numbers, recompute them from the links, then compare. Carrying them over would
+    // check the file against itself, and would trip the build's guard against a source supplying a
+    // number the ontology derives.
+    const { bundle, claimed } = fromDocument(doc);
+    const graph = build(bundle);
+    const derived = derive(graph);
+    reportSource(doc.meta.source, doc.records.length, doc.links.length);
+    reportDerive(derived);
+    const v = validate(graph, { parity: o.parity, claimed });
     reportValidation(v);
     reportGraph(v);
     if (!v.ok) process.exitCode = 1;
