@@ -1,0 +1,14 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "npm run build:static",
+  "outputDirectory": "dist/viewer",
+  "framework": null,
+  "functions": {
+    "api/index.ts": {
+      "includeFiles": "ontology/**"
+    }
+  },
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api" }
+  ]
+}

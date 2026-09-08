@@ -596,12 +596,16 @@ create table if not exists kg_concepts (
   primary key (tenant_id, id)
 );
 
+-- attrs is json, not jsonb, on purpose. It is an ordered map whose insertion order IS the display
+-- order, and jsonb normalises objects and sorts their keys - so a push and pull through jsonb silently
+-- reorders every attribute panel. usage stays jsonb because it is a flat number map that gets queried
+-- and its order carries no meaning.
 create table if not exists kg_records (
   tenant_id text not null,
   id text not null,
   concept text not null,
   label text not null,
-  attrs jsonb not null default '{}',
+  attrs json not null default '{}',
   usage jsonb not null default '{}',
   note text,
   summary text,

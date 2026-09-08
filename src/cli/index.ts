@@ -6,6 +6,7 @@
  * be rebuilt from scratch at any time, and nothing here writes to a platform master. The one command that
  * writes anything (`push`) writes the built graph to its own store, never back to a master.
  */
+import '../core/env.js';
 import { mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { Command } from 'commander';

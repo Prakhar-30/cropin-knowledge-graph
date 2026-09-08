@@ -5,6 +5,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import YAML from 'yaml';
+import { loadEnv } from '../core/env.js';
 import type { SourceBundle } from '../core/model.js';
 import { applyMapping } from '../mapping/apply.js';
 import { assertReadOnly, MappingSchema, type Mapping } from '../mapping/spec.js';
@@ -28,8 +29,14 @@ export function readerFor(mapping: Mapping, mappingDir: string): TableReader {
   const url = process.env[mapping.url_env];
   const key = process.env[mapping.key_env];
   if (!url || !key) {
+    const missing = [!url && mapping.url_env, !key && mapping.key_env].filter(Boolean).join(' and ');
+    const from = loadEnv().path;
     throw new Error(
-      `set ${mapping.url_env} and ${mapping.key_env} in the environment (see .env.example); credentials never live in the mapping file`,
+      [
+        `${missing} is not set, so there is nothing to connect to.`,
+        from ? `Read .env from ${from}, but it does not define it.` : 'No .env file was found. Copy .env.example to .env and fill it in.',
+        'Credentials never live in the mapping file - it only names the variables to read them from.',
+      ].join('\n  '),
     );
   }
   return new SupabaseTableReader(createSupabase({ url, key }));

@@ -16,6 +16,10 @@ jobs:
           cache: npm
       - run: npm ci
 
+      # A committed secret is a leaked secret, so this runs before anything else.
+      - name: no credentials in tracked files
+        run: npm run check:secrets
+
       - name: typecheck
         run: npm run typecheck
 

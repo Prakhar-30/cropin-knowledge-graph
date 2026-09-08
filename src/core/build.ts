@@ -35,14 +35,22 @@ export function sortRecords(records: GraphRecord[]): GraphRecord[] {
   return [...records].sort((a, b) => a.id.localeCompare(b.id));
 }
 
-export function sortLinks(links: Link[]): Link[] {
-  return [...links].sort(
-    (a, b) =>
-      (ontology.relationByKey.get(a.rel)?.order ?? 999) - (ontology.relationByKey.get(b.rel)?.order ?? 999) ||
-      a.rel.localeCompare(b.rel) ||
-      a.from.localeCompare(b.from) ||
-      a.to.localeCompare(b.to),
+/**
+ * Link display order: by the relation's declared order first, so a panel reads in the sequence the
+ * ontology intends, then by endpoints to make it total. Exported because the graph store has to
+ * reproduce it exactly - a document read back from the store must be the document that was written.
+ */
+export function compareLinks(a: { rel: string; from: string; to: string }, b: { rel: string; from: string; to: string }): number {
+  return (
+    (ontology.relationByKey.get(a.rel)?.order ?? 999) - (ontology.relationByKey.get(b.rel)?.order ?? 999) ||
+    a.rel.localeCompare(b.rel) ||
+    a.from.localeCompare(b.from) ||
+    a.to.localeCompare(b.to)
   );
+}
+
+export function sortLinks(links: Link[]): Link[] {
+  return [...links].sort(compareLinks);
 }
 
 export function build(bundle: SourceBundle): BuiltGraph {

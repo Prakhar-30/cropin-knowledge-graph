@@ -301,7 +301,14 @@ export async function loadDocument(tenant = 'demo'): Promise<GraphDoc> {
   const inline = document.getElementById('graph-data');
   if (inline?.textContent) return JSON.parse(inline.textContent) as GraphDoc;
 
-  const attempts = [`/api/graph?tenant=${encodeURIComponent(tenant)}`, './graph.json', '/graph.json'];
+  /*
+   * Order of attempts, and why. A static deployment has a document sitting next to index.html and no
+   * API at all, so asking the API first would log a 404 on every load of the common case. Asking for a
+   * specific tenant in the URL is explicit intent, and only the API can answer it.
+   */
+  const asked = new URLSearchParams(window.location.search).has('tenant');
+  const viaApi = `/api/graph?tenant=${encodeURIComponent(tenant)}`;
+  const attempts = asked ? [viaApi, './graph.json', '/graph.json'] : ['./graph.json', viaApi, '/graph.json'];
   const problems: string[] = [];
   for (const url of attempts) {
     try {

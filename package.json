@@ -18,12 +18,15 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "test:viewer": "tsx tests/viewer.smoke.ts",
-    "check": "tsc --noEmit && vitest run",
+    "check": "node scripts/check-secrets.mjs && tsc --noEmit && vitest run",
     "sql:masters": "tsx src/cli/index.ts sql --what masters --tenant demo",
     "build:supabase": "tsx src/cli/index.ts build --source supabase --mapping mappings/default.yaml --out dist/demo/graph.json --pretty --parity",
     "build:single": "tsx src/cli/index.ts build --source synthetic --tenant demo --out dist/demo/graph.json --inline dist/demo/index.html",
     "build:fixture": "tsx src/cli/index.ts build --source csv --mapping mappings/acme-csv.yaml --out dist/acme/graph.json --pretty",
-    "docs:diagrams": "node scripts/render-diagrams.mjs"
+    "docs:diagrams": "node scripts/render-diagrams.mjs",
+    "build:static": "node scripts/build-static.mjs",
+    "vercel-build": "node scripts/build-static.mjs",
+    "check:secrets": "node scripts/check-secrets.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",
