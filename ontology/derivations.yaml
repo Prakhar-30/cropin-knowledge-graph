@@ -1,0 +1,145 @@
+# The evidence rule, expressed declaratively.
+#
+# Exactly one class of number is entered by hand: the primary metrics below. Every other total is summed
+# from the links at build time. Because of that, no two numbers in the emitted graph can contradict each
+# other - and the partitions section turns that from an assertion into a test.
+#
+# A metric may be primary OR derived, never both. If a mapping supplies a primary value for a concept whose
+# total is derived, the build fails and names the conflicting path.
+version: 1
+
+primary:
+  - concept: variety
+    metrics: [plots, growers, projects, expected, achieved]
+  - concept: sub_variety
+    metrics: [plots, growers]
+  - concept: crop_plan
+    metrics: [plots, projects]
+  - concept: sowing_window
+    metrics: [plots]
+  - concept: alert_type
+    metrics: [area_pct]
+  - concept: stage_observation
+    metrics: [plots, configured_days, observed_days]
+  - concept: season_weather_outcome
+    metrics: [plots, expected, achieved]
+  - concept: dews_history
+    metrics: [warnings, hit_rate, lead_days]
+
+# rule: sum_of_incoming_link_weight - add the plots on every weighted link arriving at this record
+#       through one of via_relation. Unweighted relations contribute nothing, which is how a total avoids
+#       being counted twice through two different paths.
+rollups:
+  - target_concept: crop
+    metric: plots
+    rule: sum_of_incoming_link_weight
+    via_relation: [variety of]
+  - target_concept: crop_parameters
+    metric: plots
+    rule: sum_of_incoming_link_weight
+    via_relation: [has parameters]
+  - target_concept: growth_stage
+    metric: plots
+    rule: sum_of_incoming_link_weight
+    via_relation: [has growth stage]
+  - target_concept: harvest_grade
+    metric: plots
+    rule: sum_of_incoming_link_weight
+    via_relation: [graded by]
+  - target_concept: seed_grade
+    metric: plots
+    rule: sum_of_incoming_link_weight
+    via_relation: [graded by]
+  - target_concept: region
+    metric: plots
+    rule: sum_of_incoming_link_weight
+    via_relation: [grown in region, observed in region, window in region]
+  - target_concept: season
+    metric: plots
+    rule: sum_of_incoming_link_weight
+    via_relation: [grown in season, observed in season, window in season]
+  - target_concept: soil_type
+    metric: plots
+    rule: sum_of_incoming_link_weight
+    via_relation: [grown on soil]
+  - target_concept: irrigation_type
+    metric: plots
+    rule: sum_of_incoming_link_weight
+    via_relation: [irrigated by]
+  - target_concept: plan_type
+    metric: plots
+    rule: sum_of_incoming_link_weight
+    via_relation: [built from]
+  - target_concept: plan_activity
+    metric: plots
+    rule: sum_of_incoming_link_weight
+    via_relation: [includes activity]
+  - target_concept: resource_or_input
+    metric: plots
+    rule: sum_of_incoming_link_weight
+    via_relation: [requires resource]
+  - target_concept: plan_attribute
+    metric: plots
+    rule: sum_of_incoming_link_weight
+    via_relation: [captures]
+  - target_concept: form
+    metric: plots
+    rule: sum_of_incoming_link_weight
+    via_relation: [recorded on form]
+  - target_concept: disease_or_pest
+    metric: plots
+    rule: sum_of_incoming_link_weight
+    via_relation: [susceptible]
+  - target_concept: alert_type
+    metric: plots
+    rule: sum_of_incoming_link_weight
+    via_relation: [alert observed]
+
+computed:
+  - concept: variety
+    metric: gap_pct
+    expr: "round((achieved - expected) / expected * 100, 1)"
+  - concept: season_weather_outcome
+    metric: gap_pct
+    expr: "round((achieved - expected) / expected * 100, 1)"
+  - concept: stage_observation
+    metric: deviation_pct
+    expr: "round((observed_days - configured_days) / configured_days * 100, 1)"
+
+# A partition is stronger than a rollup: the weights on these links must re-sum to exactly the source
+# record's own metric. This is what makes the graph safe to read in a meeting.
+partitions:
+  - name: variety plots split across regions
+    of_concept: variety
+    metric: plots
+    via_relation: grown in region
+    direction: outgoing
+  - name: variety plots split across seasons
+    of_concept: variety
+    metric: plots
+    via_relation: grown in season
+    direction: outgoing
+  - name: variety plots split across soil types
+    of_concept: variety
+    metric: plots
+    via_relation: grown on soil
+    direction: outgoing
+  - name: variety plots split across irrigation types
+    of_concept: variety
+    metric: plots
+    via_relation: irrigated by
+    direction: outgoing
+  - name: variety plots split across its sub varieties
+    of_concept: variety
+    metric: plots
+    via_relation: sub variety of
+    direction: incoming
+    only_when_present: true
+
+# A weight that must equal a sum computed elsewhere in the graph. Catches the one place where the same
+# fact is expressed at two levels of the hierarchy.
+cross_checks:
+  - name: crop level disease weight equals the sum of its varieties
+    link_relation: prone to
+    equals: sum_of_incoming_link_weight
+    on_target_via: [susceptible]

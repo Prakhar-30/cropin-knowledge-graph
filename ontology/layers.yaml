@@ -1,0 +1,28 @@
+# Six layers. Used for colour, grouping and column order in the viewer.
+# Global: identical for every tenant.
+version: 1
+layers:
+  - key: hierarchy
+    label: Crop hierarchy
+    order: 10
+    blurb: "The Crop to Variety to Sub Variety spine that the rest of the platform hangs off."
+  - key: config
+    label: Crop configuration
+    order: 20
+    blurb: "What is configured against a crop or variety before a season starts."
+  - key: context
+    label: Where and when it is grown
+    order: 30
+    blurb: "The geography, season, soil and water context that decides which package of practices is right."
+  - key: plan
+    label: Plan and field activity
+    order: 40
+    blurb: "Reusable templates, the plans built from them, and the field work they schedule."
+  - key: risk
+    label: "Disease, pest and alerts"
+    order: 50
+    blurb: "What goes wrong, when it is critical, and which activity mitigates it."
+  - key: observed
+    label: What actually happened
+    order: 60
+    blurb: "Outcome records. The layer that turns the graph from a diagram into a decision aid."

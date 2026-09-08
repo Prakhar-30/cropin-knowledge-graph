@@ -1,0 +1,41 @@
+# One template per concept that carries a generated summary.
+#
+# Summaries are always generated, never authored, so they cannot drift from the data. A template that
+# references a relation absent from relations.yaml is a build failure.
+#
+# Slots:
+#   {metric}                       a metric on the record itself, formatted with thousands separators
+#   {top:relation}                 label of the heaviest link on that relation
+#   {top_weight:relation}          weight of that heaviest link
+#   {list:relation}                labels of every link on that relation, comma separated, "and" last
+#   {count:relation}               number of links on that relation
+#   {attr:Attribute name}          a display attribute of the record
+#   {if:relation}...{else}...{endif}   branch on whether any link exists on that relation
+#   any relation may take a |reverse modifier to be read backwards
+version: 1
+templates:
+
+  - concept: crop
+    template: >
+      {count:variety of|reverse} varieties configured across {plots} plots.
+      Mostly {top:variety of|reverse} at {top_weight:variety of|reverse} plots.
+      {count:has growth stage} growth stages configured and {count:graded by} grades in use.
+      {if:prone to}Prone to {list:prone to}.{else}No disease or pest configured against it.{endif}
+      {if:alert observed}Worst agricultural alert observed is {top:alert observed}.{endif}
+
+  - concept: variety
+    template: >
+      {plots} plots, {growers} growers, {projects} projects.
+      Achieved {achieved} t/ha against {expected} expected, {gap_pct} percent.
+      Mostly {top:grown in region} ({top_weight:grown in region} plots), grown in {list:grown in season}.
+      Mainly {top:grown on soil} soil under {top:irrigated by}.
+      {count:sub variety of|reverse} sub varieties, {count:plan for variety|reverse} crop plans attached,
+      most used {top:plan for variety|reverse}.
+      {if:susceptible}Recorded susceptible to {list:susceptible}, most often
+      {top:susceptible}.{else}No disease recorded against it.{endif}
+
+  - concept: sub_variety
+    template: >
+      {plots} plots and {growers} growers under {top:sub variety of}.
+      Purpose {attr:Purpose}, grade expectation {attr:Grade expectation}.
+      {if:graded by}Graded by {list:graded by}.{else}No grade configured against it.{endif}

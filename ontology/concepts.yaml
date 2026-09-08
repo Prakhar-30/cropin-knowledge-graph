@@ -1,0 +1,334 @@
+# 23 concepts. Global product knowledge, version controlled, identical for every tenant.
+# definition = what it is. decide = how a user should choose it (displayed as advice, not description).
+# source = assumed platform table; see ontology/nomenclature.md for confirmation status.
+version: 1
+concepts:
+
+  - key: crop
+    label: Crop
+    layer: hierarchy
+    source: crop_master
+    definition: >
+      The top of the crop hierarchy. A crop carries the growth stage set, the grade vocabulary and the
+      location specific parameters that everything below it inherits.
+    decide: >
+      Create one crop per botanical crop you actually contract or trade, not per market form. Table potato
+      and processing potato are the same crop with different harvest grades, not two crops. Everything
+      configured here is inherited, so a wrong stage set at crop level fires activities late on every plot.
+    attr_order: [Crop code, Category, Default yield unit, Price unit quantity, Calibration state]
+    primary_metrics: []
+
+  - key: variety
+    label: Variety
+    layer: hierarchy
+    source: variety_master
+    definition: >
+      A named cultivar of a crop. The level at which yield expectation, duration, base temperature and
+      model calibration actually live, and the level the intelligence models are hyper tuned to.
+    decide: >
+      Register a variety once it has its own agronomy, not once it has its own name in the trade. If two
+      names share duration, base temperature and expected yield, they are one variety with two labels. Check
+      the calibration state before reading any gap against expectation: an uncalibrated variety sits on the
+      base model and will read as underperforming whatever the field actually did.
+    attr_order: [Variety code, Seed source, Maturity class, Calibration state, Seasons of history]
+    primary_metrics: [plots, growers, projects, expected, achieved]
+
+  - key: sub_variety
+    label: Sub Variety
+    layer: hierarchy
+    source: sub_variety_master
+    definition: >
+      A tracked sub line of a variety, used where genetic lineage, seed class or contract form has to be
+      followed separately through production and procurement.
+    decide: >
+      Add a sub variety only when the produce is separated physically or commercially downstream. A seed lot
+      against a table lot earns a sub variety. A colour preference does not. Configure the grade expectation
+      here rather than on the variety, because grade failure and yield failure have different causes and get
+      reported as one number when they share a home.
+    attr_order: [Sub variety code, Purpose, Grade expectation, Lot handling]
+    primary_metrics: [plots, growers]
+
+  - key: growth_stage
+    label: Growth Stage
+    layer: config
+    source: crop_growth_stages
+    definition: >
+      One configured stage in a crop's progression, with its expected duration. Stage boundaries are what
+      field activities and disease criticality are anchored to, and what growing degree days are counted
+      against.
+    decide: >
+      Configure the stages you will actually schedule work or judge risk against, not the full phenological
+      textbook. Give each one a duration seen in your own region: the same configured stage runs shorter in
+      one region and longer in another, so a single national stage set fires activities early in one place and
+      late in another. Check the stage observations before trusting a duration.
+    attr_order: [Crop, Stage order, Configured duration, Cumulative days from sowing, Growing degree days, Critical stage]
+    primary_metrics: []
+
+  - key: crop_parameters
+    label: Crop Parameters
+    layer: config
+    source: variety_parameters
+    definition: >
+      The numeric envelope configured for a variety - expected and maximum attainable yield, harvest
+      duration, estimated days to harvest, base temperature, standard deduction and price unit quantity.
+    decide: >
+      Set expected yield from your own last two seasons on that variety, and maximum attainable yield from
+      the potential under ideal conditions - they are different numbers and the models use them differently.
+      Base temperature drives the whole growing degree day calculation, so take it from a literature value for
+      the variety rather than the crop default wherever one exists.
+    attr_order: [Expected yield, Maximum attainable yield, Harvest duration, Estimated days to harvest, Base temperature, Standard deduction, Price unit quantity]
+    primary_metrics: []
+
+  - key: sowing_window
+    label: Sowing Window
+    layer: config
+    source: crop_target_dates
+    definition: >
+      The ideal and outer date range for sowing a crop in a given region and season, with the cost of
+      breaching it. Not a platform object today; proposed because the sowing date is load bearing and
+      currently unvalidated.
+    decide: >
+      Configure a window for every crop, region and season combination in operation. Every model counts from
+      the sowing date and every model assumes that date is accurate, but nothing in the platform validates it,
+      so a mistyped or late date propagates silently into stage, progression, harvest window and yield. A
+      window turns that into an error caught at entry.
+    attr_order: [Crop, Region, Season, Ideal window, Outer window, Cost of breach]
+    primary_metrics: [plots]
+
+  - key: seed_grade
+    label: Seed Grade
+    layer: config
+    source: seed_grades
+    definition: >
+      A quality classification used at sowing and seed selection, defining the class of planting material
+      permitted for a variety or sub variety.
+    decide: >
+      Mirror the certification classes the seed actually moves under rather than inventing local names, so
+      traceability reports mean something to a buyer or an auditor. Where seed is multiplied in house, the
+      class sown decides the class that can be sold, so configure the chain and not just the endpoint.
+    attr_order: [Class, Genetic purity, Certification, Used at]
+    primary_metrics: []
+
+  - key: harvest_grade
+    label: Harvest Grade
+    layer: config
+    source: harvest_grades
+    definition: >
+      An expected output quality category at harvest, with the specification and acceptance threshold used
+      to grade a lot.
+    decide: >
+      Configure a grade expectation separately from a yield expectation. A lot can hit tonnage and still fail
+      the contract on dry matter or size, and the two failures often share a cause but need different
+      remedies. Put the numeric specification in the grade so the field team can see what it is held to.
+    attr_order: [Crop, Specification, Acceptance threshold, Contract type]
+    primary_metrics: []
+
+  - key: region
+    label: Region
+    layer: context
+    source: places_master
+    definition: >
+      A configured geography that plots roll up to. The unit at which agro climatic behaviour, and therefore
+      stage duration and disease pressure, actually differs.
+    decide: >
+      Cut regions where agronomy changes, not where the sales territory changes. If two areas need different
+      sowing windows or different stage durations, they are two regions however the org chart reads. This is
+      the axis most of the useful contradictions in your own history show up along.
+    attr_order: [Type, Administrative level, Agro climatic zone, Districts covered]
+    primary_metrics: []
+
+  - key: season
+    label: Season
+    layer: context
+    source: season_master
+    definition: >
+      A named cropping season with its calendar window. Projects carry a season, and the same variety
+      behaves differently across them.
+    decide: >
+      Keep the season vocabulary to the ones your contracts and your weather actually distinguish. Every
+      outcome record is read per season, so splitting a season finer than the data supports leaves each bucket
+      too thin to draw a conclusion from.
+    attr_order: [Months, Window, Type]
+    primary_metrics: []
+
+  - key: soil_type
+    label: Soil Type
+    layer: context
+    source: soil_type_master
+    definition: >
+      The soil classification recorded against a plot, carrying texture, water holding capacity and pH
+      range.
+    decide: >
+      Use the classification a field team can call correctly from the plot without a laboratory, because that
+      is what will actually be entered. Water holding capacity is the property the irrigation advisory cares
+      about, so record it here rather than leaving the model on a literature default.
+    attr_order: [Texture, Water holding capacity, pH range, Notes]
+    primary_metrics: []
+
+  - key: irrigation_type
+    label: Irrigation Type
+    layer: context
+    source: irrigation_type_master
+    definition: >
+      The method by which water reaches the crop, with its application efficiency and effective daily
+      capacity.
+    decide: >
+      Record the application efficiency for every method in use. The irrigation advisory returns effective
+      irrigation, so a 30 mm recommendation on a system that is 75 percent efficient means 37.5 mm actually
+      applied - without the efficiency configured the field under waters while following the advice exactly.
+    attr_order: [Method, Application efficiency, Effective capacity per day, Suited to]
+    primary_metrics: []
+
+  - key: plan_type
+    label: Plan Type
+    layer: plan
+    source: plan_type_master
+    definition: >
+      A reusable template defining the structure, attributes and activities of a package of practices, which
+      is then assigned to a crop, variety or sub variety.
+    decide: >
+      Build a plan type per package of practices, not per season - the season belongs on the crop plan built
+      from it. A change to a plan type only cascades while no operational data has been recorded against the
+      plans below it, so get the attribute list right before the first task is filled in.
+    attr_order: [Crop, Sections, Attribute kinds, Status]
+    primary_metrics: []
+
+  - key: crop_plan
+    label: Crop Plan
+    layer: plan
+    source: crop_plan
+    definition: >
+      A plan type instantiated against a variety and a season - the actionable package of practices a plot
+      is run to.
+    decide: >
+      Instantiate per variety and season, and clone rather than edit once a season has started. Where a
+      region runs a materially different practice, make it a separate crop plan instead of leaving field teams
+      to customise plot by plot, because plot level customisation is invisible in every report above it.
+    attr_order: [Plan type, Variety, Season, Activities, Status, Cost per acre]
+    primary_metrics: [plots, projects]
+
+  - key: plan_activity
+    label: Plan Activity
+    layer: plan
+    source: plan_activity
+    definition: >
+      One scheduled or unscheduled task inside a plan, anchored to a growth stage or an offset, with the
+      resources it consumes and the data it captures.
+    decide: >
+      Anchor an activity to a growth stage rather than a calendar date wherever the work is biologically
+      driven, so it follows a slow or fast season instead of firing on a fixed day. Keep the captured
+      attribute list short: every extra field is a field an agent fills in badly under time pressure.
+    attr_order: [Activity type, Scheduling, Offset rule, Duration, Approval]
+    primary_metrics: []
+
+  - key: plan_attribute
+    label: Plan Attribute
+    layer: plan
+    source: plan_attributes
+    definition: >
+      A data point captured while an activity is carried out. Standard attributes are platform wide, custom
+      attributes are yours, table attributes bring a predefined structured field set.
+    decide: >
+      Prefer a standard attribute over a custom one with the same meaning, because standard attributes are
+      what cross project and cross tenant comparison can be built on. Reach for a custom attribute only where
+      the measurement is genuinely yours, and put the unit in the name so the number is never ambiguous.
+    attr_order: [Kind, Data type, Unit, Required]
+    primary_metrics: []
+
+  - key: resource_or_input
+    label: Resource or Input
+    layer: plan
+    source: resource_master
+    definition: >
+      Material or equipment an activity consumes or uses - fertiliser, chemistry, seed, labour, machinery or
+      a farm resource.
+    decide: >
+      Keep one master entry per input with a single unit and let the plans reference it, rather than naming
+      the same product differently in each plan. Without that, input effectiveness cannot be linked to crop
+      performance, which is the whole reason input led operations digitise in the first place.
+    attr_order: [Category, Unit, Indicative cost, Owner]
+    primary_metrics: []
+
+  - key: form
+    label: Form
+    layer: plan
+    source: form_master
+    definition: >
+      A structured data collection instrument - general, farmer, operational or survey - with versioning and
+      an optional consent mechanism.
+    decide: >
+      Version a form instead of editing it once responses exist, or the season's data becomes two shapes in
+      one column. Put consent on any form that collects farmer information you will share onward, since that
+      is the only record you will have that permission was given.
+    attr_order: [Form type, Version, Fields, Consent]
+    primary_metrics: []
+
+  - key: disease_or_pest
+    label: Disease or Pest
+    layer: risk
+    source: alert_master
+    definition: >
+      A biotic risk configured against a crop, with favourable conditions, symptoms, critical stages and the
+      DEWS model that forecasts its probability.
+    decide: >
+      Configure the risks actually seen in your own geography, with the growth stages they matter at, because
+      criticality by stage is what turns a probability into a spray decision. Record whether the variety
+      resists it - a resistant variety under a high probability warning does not need the same response.
+    attr_order: [Type, Crop, Favourable conditions, Symptoms, Mitigation, DEWS model]
+    primary_metrics: []
+
+  - key: alert_type
+    label: Alert Type
+    layer: risk
+    source: alert_master
+    definition: >
+      A named field alert raised against a crop, biotic or non biotic, with its trigger and advisory.
+    decide: >
+      Do not leave the non biotic alerts until last. Frost, hail and waterlogging each account for more mean
+      area impacted in observed history than the headline diseases do, and they are cheaper to configure
+      because the trigger is weather rather than a disease model.
+    attr_order: [Class, Trigger, Advisory, Mean area impacted]
+    primary_metrics: [area_pct]
+
+  - key: stage_observation
+    label: Stage Observation
+    layer: observed
+    source: crop_stage_history
+    definition: >
+      What a configured stage actually did in a region - observed duration against configured duration, and
+      the deviation between them. An aggregation the platform can compute but does not expose as an object.
+    decide: >
+      Read this before accepting a stage duration. Where observed duration is consistently shorter or longer
+      than configured in a region, every activity anchored to that boundary is firing at the wrong time, and
+      the fix is a regional override rather than a nudge to the field team.
+    attr_order: [Crop, Stage, Region, Season, Configured duration, Observed duration, Deviation, Plots behind it]
+    primary_metrics: [plots, configured_days, observed_days]
+
+  - key: season_weather_outcome
+    label: Season Weather and Outcome
+    layer: observed
+    source: season_summary
+    definition: >
+      One season of weather for a variety in a region, paired with the harvest it produced and the grade
+      outcome. An aggregation the platform can compute but does not expose as an object.
+    decide: >
+      Use this to separate a variety problem from a season problem before changing a configuration. A yield
+      gap in a season that also carried a heat event during bulking is a weather outcome, not a wrong expected
+      yield - and the grade failure alongside it usually has the same cause.
+    attr_order: [Crop, Variety, Region, Season, Rainfall, Mean Tmax, Heat events, Expected yield, Achieved yield, Gap, Grade outcome]
+    primary_metrics: [plots, expected, achieved]
+
+  - key: dews_history
+    label: DEWS History
+    layer: observed
+    source: dews_history
+    definition: >
+      The warning record for a disease in a region and season - warnings fired, how many were critical, how
+      many were followed by disease, the hit rate and the mean lead time.
+    decide: >
+      Judge a DEWS configuration on lead time, not only on hit rate. Hit rates across observed history are
+      respectable while lead time ranges from under two days to nearly six, and a warning with two days notice
+      is only actionable where the sprayer is already on the farm. Configure lead time as a threshold
+      alongside probability.
+    attr_order: [Disease, Region, Season, Warnings fired, Critical warnings, Followed by disease, Hit rate, Mean lead time, Critical threshold]
+    primary_metrics: [warnings, hit_rate, lead_days]

@@ -1,0 +1,317 @@
+# 33 relations. Global, version controlled.
+#
+# forward / reverse are the plain-English section headings the viewer renders. A raw relation key must
+# never reach the UI (invariant 13).
+# order fixes section sequence so the panel is stable and scannable rather than alphabetical.
+# weighted says whether the historical plot count applies to this relation. Unweighted relations exist so
+# that a derived total can never double count the same plots through two different paths.
+# pairs is the schema for the schema: a link whose endpoint concepts are not an allowed pair is a build
+# failure, not a warning.
+version: 1
+cardinalities: [one_to_one, one_to_many, many_to_one, many_to_many]
+relations:
+
+  - key: variety of
+    order: 10
+    forward: Crop it belongs to
+    reverse: Varieties configured
+    weighted: true
+    cardinality: many_to_one
+    pairs:
+      - { from: variety, to: crop }
+
+  - key: sub variety of
+    order: 11
+    forward: Variety it belongs to
+    reverse: Sub varieties configured
+    weighted: true
+    cardinality: many_to_one
+    pairs:
+      - { from: sub_variety, to: variety }
+
+  - key: has parameters
+    order: 20
+    forward: Yield and duration parameters
+    reverse: Configured for
+    weighted: true
+    cardinality: one_to_one
+    pairs:
+      - { from: variety, to: crop_parameters }
+
+  - key: has growth stage
+    order: 21
+    forward: Growth stages configured
+    reverse: Crop
+    weighted: true
+    cardinality: one_to_many
+    pairs:
+      - { from: crop, to: growth_stage }
+
+  - key: sowing window for
+    order: 22
+    forward: Crop
+    reverse: Sowing windows configured
+    weighted: false
+    cardinality: many_to_one
+    pairs:
+      - { from: sowing_window, to: crop }
+
+  - key: window in region
+    order: 22
+    forward: Region
+    reverse: Sowing windows here
+    weighted: false
+    cardinality: many_to_one
+    pairs:
+      - { from: sowing_window, to: region }
+
+  - key: window in season
+    order: 22
+    forward: Season
+    reverse: Sowing windows in this season
+    weighted: false
+    cardinality: many_to_one
+    pairs:
+      - { from: sowing_window, to: season }
+
+  - key: graded by
+    order: 24
+    forward: Grades in use
+    reverse: Used for
+    weighted: true
+    cardinality: many_to_many
+    pairs:
+      - { from: crop, to: harvest_grade }
+      - { from: variety, to: harvest_grade }
+      - { from: variety, to: seed_grade }
+      - { from: sub_variety, to: harvest_grade }
+      - { from: sub_variety, to: seed_grade }
+
+  - key: grown in region
+    order: 30
+    forward: Regions it is grown in
+    reverse: Varieties grown here
+    weighted: true
+    cardinality: many_to_many
+    pairs:
+      - { from: variety, to: region }
+
+  - key: grown in season
+    order: 31
+    forward: Seasons it is grown in
+    reverse: Varieties grown in this season
+    weighted: true
+    cardinality: many_to_many
+    pairs:
+      - { from: variety, to: season }
+
+  - key: grown on soil
+    order: 32
+    forward: Soil types it is grown on
+    reverse: Varieties grown on this soil
+    weighted: true
+    cardinality: many_to_many
+    pairs:
+      - { from: variety, to: soil_type }
+
+  - key: irrigated by
+    order: 33
+    forward: Irrigation methods used
+    reverse: Varieties irrigated this way
+    weighted: true
+    cardinality: many_to_many
+    pairs:
+      - { from: variety, to: irrigation_type }
+
+  - key: plan type for
+    order: 40
+    forward: Crop
+    reverse: Plan types available
+    weighted: false
+    cardinality: many_to_one
+    pairs:
+      - { from: plan_type, to: crop }
+
+  - key: built from
+    order: 41
+    forward: Plan type it was built from
+    reverse: Crop plans built from it
+    weighted: true
+    cardinality: many_to_one
+    pairs:
+      - { from: crop_plan, to: plan_type }
+
+  - key: plan for variety
+    order: 42
+    forward: Variety
+    reverse: Crop plans attached
+    weighted: true
+    cardinality: many_to_one
+    pairs:
+      - { from: crop_plan, to: variety }
+
+  - key: plan for season
+    order: 43
+    forward: Season
+    reverse: Crop plans in this season
+    weighted: true
+    cardinality: many_to_one
+    pairs:
+      - { from: crop_plan, to: season }
+
+  - key: includes activity
+    order: 44
+    forward: Activities in this plan
+    reverse: Crop plans that include it
+    weighted: true
+    cardinality: many_to_many
+    pairs:
+      - { from: crop_plan, to: plan_activity }
+
+  - key: scheduled at
+    order: 45
+    forward: Scheduled at growth stage
+    reverse: Activities scheduled at this stage
+    weighted: true
+    cardinality: many_to_many
+    pairs:
+      - { from: plan_activity, to: growth_stage }
+
+  - key: requires resource
+    order: 46
+    forward: Resources and inputs required
+    reverse: Activities that use it
+    weighted: true
+    cardinality: many_to_many
+    pairs:
+      - { from: plan_activity, to: resource_or_input }
+
+  - key: captures
+    order: 47
+    forward: Data captured in the field
+    reverse: Activities that capture it
+    weighted: true
+    cardinality: many_to_many
+    pairs:
+      - { from: plan_activity, to: plan_attribute }
+
+  - key: recorded on form
+    order: 48
+    forward: Form it is recorded on
+    reverse: Activities using this form
+    weighted: true
+    cardinality: many_to_one
+    pairs:
+      - { from: plan_activity, to: form }
+
+  - key: prone to
+    order: 50
+    forward: Diseases and pests observed
+    reverse: Crop
+    weighted: true
+    cardinality: one_to_many
+    pairs:
+      - { from: crop, to: disease_or_pest }
+
+  - key: susceptible
+    order: 51
+    forward: Diseases and pests recorded on it
+    reverse: Varieties recorded susceptible
+    weighted: true
+    cardinality: many_to_many
+    pairs:
+      - { from: variety, to: disease_or_pest }
+
+  - key: critical at
+    order: 52
+    forward: Critical growth stages
+    reverse: Risks critical at this stage
+    weighted: true
+    cardinality: many_to_many
+    pairs:
+      - { from: disease_or_pest, to: growth_stage }
+
+  - key: mitigated by
+    order: 53
+    forward: Mitigated by activity
+    reverse: Risks this activity mitigates
+    weighted: true
+    cardinality: many_to_many
+    pairs:
+      - { from: disease_or_pest, to: plan_activity }
+      - { from: alert_type, to: plan_activity }
+
+  - key: alert observed
+    order: 54
+    forward: Agricultural alerts observed
+    reverse: Crop
+    weighted: true
+    cardinality: many_to_many
+    pairs:
+      - { from: crop, to: alert_type }
+
+  - key: stage observed
+    order: 60
+    forward: Growth stage
+    reverse: Field observations of stage timing
+    weighted: false
+    cardinality: many_to_one
+    pairs:
+      - { from: stage_observation, to: growth_stage }
+
+  - key: observed for crop
+    order: 61
+    forward: Crop
+    reverse: Field observations of stage timing
+    weighted: false
+    cardinality: many_to_one
+    pairs:
+      - { from: stage_observation, to: crop }
+
+  - key: observed in region
+    order: 62
+    forward: Region
+    reverse: Observations recorded here
+    weighted: false
+    cardinality: many_to_one
+    pairs:
+      - { from: stage_observation, to: region }
+      - { from: season_weather_outcome, to: region }
+      - { from: dews_history, to: region }
+
+  - key: observed in season
+    order: 63
+    forward: Season
+    reverse: Records from this season
+    weighted: false
+    cardinality: many_to_one
+    pairs:
+      - { from: season_weather_outcome, to: season }
+      - { from: dews_history, to: season }
+
+  - key: outcome for
+    order: 64
+    forward: Variety
+    reverse: Season weather and the harvest it produced
+    weighted: false
+    cardinality: many_to_one
+    pairs:
+      - { from: season_weather_outcome, to: variety }
+
+  - key: season record for
+    order: 64
+    forward: Crop
+    reverse: Season weather and the harvest it produced
+    weighted: false
+    cardinality: many_to_one
+    pairs:
+      - { from: season_weather_outcome, to: crop }
+
+  - key: warnings for
+    order: 65
+    forward: Disease or pest
+    reverse: DEWS warning history
+    weighted: false
+    cardinality: many_to_one
+    pairs:
+      - { from: dews_history, to: disease_or_pest }
