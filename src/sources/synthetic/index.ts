@@ -110,11 +110,9 @@ export class SyntheticSource implements Source {
 
     /** Plots behind each activity: the crop plans that include it, summed. Plans do not share plots. */
     const activityPlots = new Map<string, number>();
-    const activityPlanCount = new Map<string, number>();
     for (const plan of CROP_PLANS) {
       for (const a of ARCHETYPE_ACTIVITIES[plan.archetype]) {
         activityPlots.set(a, (activityPlots.get(a) ?? 0) + plan.plots);
-        activityPlanCount.set(a, (activityPlanCount.get(a) ?? 0) + 1);
       }
     }
 
@@ -307,14 +305,16 @@ export class SyntheticSource implements Source {
     }
 
     for (const a of ACTIVITIES) {
-      const reuse = activityPlanCount.get(a.key) ?? 0;
+      // `note` is authored prose only. An activity attached to no crop plan is a derived fact, and it is
+      // already on the record as a rolled-up total of zero - generating prose for it here would make this
+      // source disagree with a column-driven mapping that cannot know it.
       rec('plan_activity', a.key, a.label, {
         'Activity type': a.type,
         Scheduling: a.scheduling,
         'Offset rule': a.offset,
         Duration: a.duration,
         Approval: a.approval,
-      }, {}, a.note ?? (reuse === 0 ? 'Configured but attached to no crop plan.' : undefined));
+      }, {}, a.note);
     }
 
     for (const [crop, anchors] of Object.entries(STAGE_ANCHORS)) {

@@ -50,6 +50,18 @@ export function interpolate(template: string, row: Row): string {
   });
 }
 
+/**
+ * Interpolate a field that is only worth emitting when it actually resolved.
+ *
+ * A null column leaves its slot in place, so a `note` mapped from an empty column would otherwise ship
+ * the literal string "{note}" as prose. Omitting it is the same rule the rest of the pipeline follows:
+ * absent data is absent, never a placeholder standing in for it.
+ */
+function resolved(template: string, row: Row): string | undefined {
+  const value = interpolate(template, row).trim();
+  return value === '' || value.includes('{') ? undefined : value;
+}
+
 function readValue(
   src: ValueSource,
   row: Row,
@@ -113,8 +125,8 @@ export async function applyMapping(mapping: Mapping, reader: TableReader, tenant
       }
       const attrs: Record<string, string> = {};
       for (const a of spec.attrs) {
-        const value = interpolate(a.value, row).trim();
-        if (value && !value.includes('{')) attrs[a.key] = value;
+        const value = resolved(a.value, row);
+        if (value !== undefined) attrs[a.key] = value;
       }
       const usage: Record<string, number> = {};
       for (const [metric, src] of Object.entries(spec.usage)) {
@@ -122,13 +134,14 @@ export async function applyMapping(mapping: Mapping, reader: TableReader, tenant
         if (value !== undefined && Number.isFinite(value)) usage[metric] = value;
         else if (src.from === 'metric' && !metrics.has(src.name)) metricsNotComputed.push(`${concept.key}.${metric}`);
       }
+      const note = spec.note ? resolved(spec.note, row) : undefined;
       records.push({
         id,
         concept: conceptId(concept.key),
         label: interpolate(spec.label, row),
         attrs,
         usage,
-        ...(spec.note ? { note: interpolate(spec.note, row) } : {}),
+        ...(note === undefined ? {} : { note }),
         tenant_id: tenantId,
       });
     }
@@ -154,12 +167,13 @@ export async function applyMapping(mapping: Mapping, reader: TableReader, tenant
         continue;
       }
       const plots = spec.weight ? readValue(spec.weight, row, metrics, undefined) : undefined;
+      const note = spec.note ? resolved(spec.note, row) : undefined;
       links.push({
         from,
         to,
         rel: spec.rel,
         ...(plots === undefined || !Number.isFinite(plots) ? {} : { plots: Math.round(plots) }),
-        ...(spec.note ? { note: interpolate(spec.note, row) } : {}),
+        ...(note === undefined ? {} : { note }),
         tenant_id: tenantId,
       });
     }
