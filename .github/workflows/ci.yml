@@ -1,0 +1,36 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - name: typecheck
+        run: npm run typecheck
+
+      # --strict is the default: any invariant failure is a non-zero exit.
+      - name: build the reference tenant and assert parity
+        run: npm run graph -- build --source synthetic --tenant demo --out dist/demo/graph.json --pretty --parity
+
+      - name: build the degraded fixture tenant
+        run: npm run graph -- build --source csv --mapping mappings/acme-csv.yaml --out dist/acme/graph.json
+
+      - name: re-validate the emitted document
+        run: npm run graph -- validate dist/demo/graph.json --parity
+
+      - name: tests
+        run: npx vitest run
+
+      - name: viewer builds
+        run: npm run build:viewer

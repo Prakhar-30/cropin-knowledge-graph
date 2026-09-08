@@ -6,7 +6,8 @@
  * `attr_order`. That gives byte-identical output between two runs (invariant 11) without destroying the
  * attribute display order, which globally sorted keys would.
  */
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
 import type { BuiltGraph } from './build.js';
 import { EVIDENCE_RULE, SCHEMA_VERSION, type GraphDocument } from './model.js';
 import { layerMap, ontology, sections } from './ontology.js';
@@ -108,11 +109,33 @@ export function serialise(doc: GraphDocument, pretty = false): string {
 }
 
 /**
- * Single self-contained HTML: the built viewer with the document embedded. The viewer prefers an inline
- * payload when one is present and falls back to fetching graph.json.
+ * Single self-contained HTML: the built viewer with its own script, stylesheet and the document all
+ * embedded. Everything is inlined because the point of this output is handing one file to someone who
+ * has no web server - a page that still fetches /assets/index.js is not self-contained.
+ *
+ * The viewer prefers the inline payload when it is present and falls back to fetching graph.json.
  */
 export function inlineHtml(viewerHtmlPath: string, json: string): string {
-  const html = readFileSync(viewerHtmlPath, 'utf8');
+  let html = readFileSync(viewerHtmlPath, 'utf8');
+  const dir = dirname(viewerHtmlPath);
+
+  const assetPath = (href: string) => resolve(dir, href.replace(/^[./]+/, ''));
+
+  html = html.replace(
+    /<script\b[^>]*\bsrc="([^"]+)"[^>]*><\/script>/g,
+    (whole, src: string) => {
+      const path = assetPath(src);
+      if (!existsSync(path)) return whole;
+      return `<script type="module">\n${readFileSync(path, 'utf8').replace(/<\//g, '<\\/')}\n</script>`;
+    },
+  );
+
+  html = html.replace(/<link\b[^>]*\brel="stylesheet"[^>]*\bhref="([^"]+)"[^>]*>/g, (whole, href: string) => {
+    const path = assetPath(href);
+    if (!existsSync(path)) return whole;
+    return `<style>\n${readFileSync(path, 'utf8')}\n</style>`;
+  });
+
   const payload = `<script id="graph-data" type="application/json">${json.replace(/<\//g, '<\\/')}</script>`;
   if (!html.includes('</body>')) throw new Error(`${viewerHtmlPath} has no </body> to inline into`);
   return html.replace('</body>', `${payload}\n</body>`);
