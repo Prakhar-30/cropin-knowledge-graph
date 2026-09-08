@@ -75,15 +75,15 @@ rollups:
     rule: sum_of_incoming_link_weight
     via_relation: [includes activity]
   - target_concept: resource_or_input
-    metric: plots
+    metric: used_on
     rule: sum_of_incoming_link_weight
     via_relation: [requires resource]
   - target_concept: plan_attribute
-    metric: plots
+    metric: used_on
     rule: sum_of_incoming_link_weight
     via_relation: [captures]
   - target_concept: form
-    metric: plots
+    metric: used_on
     rule: sum_of_incoming_link_weight
     via_relation: [recorded on form]
   - target_concept: disease_or_pest
