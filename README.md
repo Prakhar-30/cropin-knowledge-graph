@@ -11,11 +11,6 @@ actually happened rather than against an opinion.
 
 ## Architecture
 
-Both diagrams are mermaid `sequenceDiagram` blocks, committed as SVG next to their source. The SVG is
-what the README shows, because mermaid only renders on github.com - a markdown preview in an editor
-shows the raw source instead. The source stays in a collapsed block under each diagram, and
-`npm run docs:diagrams` regenerates the SVG and a PNG from it.
-
 The same five stages run whether there is a database or not. Only the source adapter changes, and the
 two paths are required to produce the *same document* - that equality is a test, and it is what caught
 the two real defects in the mapping layer.
